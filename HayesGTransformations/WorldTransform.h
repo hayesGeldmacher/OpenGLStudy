@@ -23,6 +23,9 @@ public:
 	//default constructor
 	WorldTransform();
 
+	//fileName contsructor
+	WorldTransform(const char* fileName);
+
 	//sets uniform scale value
 	void SetScale(float scale);
 
@@ -60,7 +63,9 @@ public:
 	int facesNumber = 0;
 
 	//the mesh this object is loading
-	cy::TriMesh mesh;
+	cy::TriMesh *mesh;
+
+	const char* objectFileName;
 
 
 	void SetVertArrayToPlane();
@@ -92,5 +97,7 @@ public:
 
 	//vector of vertex structs, stores pos, normal, and coord data in loaded mesh
 	static std::vector<Vertex> vertexData;
+
+	int faceNumber = 0;
 
 };

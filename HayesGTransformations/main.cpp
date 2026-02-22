@@ -1,6 +1,7 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #define GLM_ENABLE_EXPERIMENTAL
+#include "stb_image.h"
 //Glut/GL libaries
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -64,7 +65,9 @@
 bool renderToTexture = false;
 
 //teapot mesh being loaded in
-cy::TriMesh mesh;
+cy::TriMesh teapotMesh;
+
+cy::TriMesh cubeMesh;
 
 //program info for the teapot
 ProgramInfo teapotInfo;
@@ -75,11 +78,13 @@ ProgramInfo planeInfo;
 //program info for the environment cube
 ProgramInfo cubeInfo;
 
+
+
 cy::GLRenderTexture2D renderBuffer;
 
 //number of vertices in mesh
 float verticesNumber = 0.0f;
-int facesNumber = 0;
+
 
 //screen width and height
 const static int width = 800;
@@ -103,9 +108,9 @@ float animateSpeed = 0.05f;
 WorldTransform planeObject;
 
 //instance of world object transform class, generates transformation matrix
-WorldTransform teapotObject;
+WorldTransform teapotObject("teapot.obj");
 
-WorldTransform cubeObject;
+WorldTransform cubeObject("cube.obj");
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
@@ -156,11 +161,6 @@ struct persProj {
 };
 //instance of projection info struct
 static persProj projInfo;
-
-
-std::vector<Vertex> teapotVertexData;
-
-std::vector<Vertex> cubeVertexData;
 
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
@@ -228,10 +228,30 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
+void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera) {
+    
+    
+    //generate view matrix from camera
+    //remove translation from the env cube matrix, so it only corresponds to rotation
+    glm::mat4 camViewMat = glm::mat4(glm::mat3(camera.GetMatrix()));
+
+    //generate perpsective/ortho projection matrix
+    glm::mat4 projMat = projInfo.GetProjection();
+
+    GLint uniformLocation;
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "view");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+
+    //send the projection variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "projection");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
+}
+
 //called when GLUT draws something to screen
 void OnDisplay() {
 
-    
     if (renderToTexture) {
         renderBuffer.Bind();
         //create mipmaps each frame
@@ -244,6 +264,21 @@ void OnDisplay() {
     glClearColor(red.value, blue.value, green.value, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
+
+    glDepthMask(GL_FALSE);
+
+    //render cube
+    glUseProgram(cubeInfo.programID);
+    glBindVertexArray(cubeInfo.vao);
+
+    //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
+    SetUniformEnvironment(cubeInfo, cubeObject, camera);
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+    glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
+    glDepthMask(GL_TRUE);
+   
+
     //use the desired shader program
     glUseProgram(teapotInfo.programID);
     glBindVertexArray(teapotInfo.vao);
@@ -263,32 +298,34 @@ void OnDisplay() {
     glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDDiffuse);
     glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDSpec);
 
-    glDrawArrays(GL_TRIANGLES, 0, facesNumber * 6);
-     if (renderToTexture) {
-    glBindVertexArray(0);
-    renderBuffer.Unbind();
-  
-    // clear all relevant buffers
-     glClearColor(0.0f, 0.0f, 0.00f, 1.0f);
-     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDrawArrays(GL_TRIANGLES, 0, teapotObject.facesNumber);
 
-     renderBuffer.BindTexture(0);
+    if (renderToTexture) {
+
+        glBindVertexArray(0);
+        renderBuffer.Unbind();
+  
+        // clear all relevant buffers
+         glClearColor(0.0f, 0.0f, 0.00f, 1.0f);
+         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+         renderBuffer.BindTexture(0);
 
     
-         //after all of that, let's try rendering the plane as well!
-        glUseProgram(planeInfo.programID);
-        glBindVertexArray(planeInfo.vao);
-        //glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
+             //after all of that, let's try rendering the plane as well!
+            glUseProgram(planeInfo.programID);
+            glBindVertexArray(planeInfo.vao);
+            //glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
 
-        //update object rotation
-        planeObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+            //update object rotation
+            planeObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
 
-        //set a new lookat target for the camera to mesh object location
-        planeCamera.SetTarget(planeObject.GetPosition());
+            //set a new lookat target for the camera to mesh object location
+            planeCamera.SetTarget(planeObject.GetPosition());
 
-        SetUniformAttributesTransformations(planeInfo,  planeObject, planeCamera);
+            SetUniformAttributesTransformations(planeInfo,  planeObject, planeCamera);
 
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
      }
 
     //swap buffers, signifies that we are done rendering this frame
@@ -313,7 +350,7 @@ cy::TriMesh LoadObjectFile(const char* fileName) {
 }
 
 //centers the object, sets initial pos, rot, and scale
-void InitializeObject() {
+void InitializeObject(cy::TriMesh &mesh) {
     //compute the bounding box to center the object in local space
     mesh.ComputeBoundingBox();
     cy::Vec3f boundMin = mesh.GetBoundMin();
@@ -447,7 +484,7 @@ bool RenderToTexture() {
 }
 
 //generates textures for given object
-void GenerateTextures() {
+void GenerateTextures(cy::TriMesh &mesh) {
 
     //load imageData with the pixel image data we get from the file
     int matNum = mesh.NM();
@@ -482,41 +519,45 @@ void GenerateTextures() {
 }
 
 //cube mapping for next week's project!
-void CubeMap(){
+void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
 
-    GLuint texID;
     glGenTextures(1, &texID);
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, texID);
 
-    //create array of texture face fileNames
-    std::vector<const char*> faceNames = {
-        "cubemap_negx",
-        "cubemap_negy",
-        "cubemap_negz",
-        "cubemap_posx",
-        "cubemap_posy",
-        "cubemap_posz"
-    };
-
-
     //for loop to generate texture images for all 6 faces
-    int width, height, colorChannels;
-    unsigned char* image;
-    for (int i = 0; i < faceNames.size(); i++) {
-        image = imageLoader.loadImageFromPNG(faceNames[i], width, height, colorChannels);
-        glTexImage2D(
-            //iterating the enum eahc time to move through each face
-            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-            0,        //mipmap level 0
-            GL_RGBA,  //internal format
-            width,    //image width
-            height,   //image height
-            0,        //borderr (must be 0)
-            GL_RGBA,  //format
-            GL_UNSIGNED_BYTE,  //data type
-            &image[0] //pixel array data
-        );
+    int width = 0;
+    int height = 0;
+    int colorChannels = 0;
+    
+    for (unsigned int i = 0; i < faceNames.size(); i++) {
+        
+        unsigned char* image = imageLoader.loadImageFromPNG(faceNames[i].c_str(), width, height, colorChannels);
+        if (image) {
+            std::cout << "WIDTH: " << width << std::endl;
+            std::cout << "HEIGHT: " << height << std::endl;
+            std::cout << "ColorChannels " << colorChannels << std::endl;
+            std::cout << "Generated face number: " << i << std::endl;
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexImage2D(
+                //iterating the enum eahc time to move through each face
+                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0,        //mipmap level 0
+                GL_RGB,  //internal format
+                width,    //image width
+                height,   //image height
+                0,        //borderr (must be 0)
+                GL_RGB,  //format
+                GL_UNSIGNED_BYTE,  //data type
+                image //pixel array data
+            );
+
+
+        }
+        else {
+            std::cout << "failed to load image at path: " << faceNames[i] << std::endl;
+            stbi_image_free(image);
+        }
 
     }
     
@@ -567,23 +608,24 @@ void CubeMap(){
 }
 
 //creates buffer for vertex pos and normal info, sets related attributes
-void CreateBuffers(GLuint &vbo, WorldTransform &object, std::vector<Vertex> &vertexData) {
-    //create the mesh from obj data
-    mesh = LoadObjectFile("teapot.obj");
+void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool hasNormals, bool hasTexCoords, bool generateTextures) {
+    
 
-    //each meshh face has 3 associated vertices, store that number for later
-    facesNumber = mesh.NF() * 3;
+    mesh = LoadObjectFile(object.objectFileName);
+
+    //each mesh face has 3 associated vertices, store that number for later
+    object.facesNumber = mesh.NF() * 3;
 
     //create a vector of vertices for vertex and normal buffering
-    vertexData = std::vector<Vertex>(mesh.NF() * 3);
+    std::vector<Vertex> vertexData = std::vector<Vertex>(object.facesNumber);
 
     //takes position and normal values from vertices in the mesh, stores in vertexData vector above
     int vertexIndex = 0;
     for (int i = 0; i < mesh.NF(); i++) {
         // Get face indices for positions and normals
         const cy::TriMesh::TriFace& face = mesh.F(i);
-        const cy::TriMesh::TriFace& faceNormal = mesh.FN(i);
-        const cy::TriMesh::TriFace& faceTex = mesh.FT(i);
+        const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
+        const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
 
         for (int c = 0; c < 3; c++) {
             // store position data
@@ -592,26 +634,29 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, std::vector<Vertex> &ver
             vertexData[vertexIndex].position[1] = point.y;
             vertexData[vertexIndex].position[2] = point.z;
 
-            // store normal data
-            const auto& norm = mesh.VN(faceNormal.v[c]);
-            vertexData[vertexIndex].normals[0] = norm.x;
-            vertexData[vertexIndex].normals[1] = norm.y;
-            vertexData[vertexIndex].normals[2] = norm.z;
+            if (hasNormals) {
+                // store normal data
+                const auto& norm = mesh.VN(faceNormal->v[c]);
+                vertexData[vertexIndex].normals[0] = norm.x;
+                vertexData[vertexIndex].normals[1] = norm.y;
+                vertexData[vertexIndex].normals[2] = norm.z;
+            }
 
-            //store texture coordinates
-            const auto& tex = mesh.VT(faceTex.v[c]);
-            const float flippedUV = 1.0f - tex.y;
-            vertexData[vertexIndex].texCords[0] = tex.x;
-            vertexData[vertexIndex].texCords[1] = flippedUV;
+            if (hasTexCoords) {
+                //store texture coordinates
+                const auto& tex = mesh.VT(faceTex->v[c]);
+                const float flippedUV = 1.0f - tex.y;
+                vertexData[vertexIndex].texCords[0] = tex.x;
+                vertexData[vertexIndex].texCords[1] = flippedUV;
+            }
 
             vertexIndex++;
         }
     }
 
-
     //then generate texture image
-    GenerateTextures();
-
+    if(generateTextures){ GenerateTextures(mesh); }
+   
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -621,13 +666,17 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, std::vector<Vertex> &ver
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)0);
 
+    if (hasNormals) {
+        //interpret normal data
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::normals));
+    }
+    if (hasTexCoords) {
 
-    //interpret normal data
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::normals));
-    //interpret texture data
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::texCords));
+        //interpret texture data
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::texCords));
+    }
 }
 
 //creates buffers specifically for the plane object, different logic than above function due to lack of mesh obj file
@@ -935,21 +984,38 @@ int main(int argc, char** argv)
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
 
-    //compile shaders, create program, load mesh
-    CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
-    //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
-
-    //create attribute buffers for vertex position and normal data
-    CreateBuffers(teapotInfo.vbo, teapotObject, teapotVertexData);
-
-    //set initial mesh rot, pos, and scale
-    InitializeObject();
-
     //compile shaders for the environment cubemap
     CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
 
     //create buffers for env cube
-    CreateBuffers(cubeInfo.vbo, cubeObject, cubeVertexData);
+    CreateBuffers(cubeInfo.vbo, cubeObject, cubeMesh, false, false, false);
+
+    //create array of texture face fileNames
+    std::vector<std::string> faceNames = {
+        "cubemap_posx.png",
+        "cubemap_negx.png",
+        "cubemap_posy.png",
+        "cubemap_negy.png",
+        "cubemap_posz.png",
+        "cubemap_negz.png",
+    };
+
+
+    //create and bind 6 texture faces for the cubemap
+    BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
+
+
+    //compile shaders, create program, load mesh
+     CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
+    //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
+
+    //create attribute buffers for vertex position and normal data
+    CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, true);
+
+    //set initial mesh rot, pos, and scale
+    InitializeObject(teapotMesh);
+
+    
     
    if (renderToTexture) {
         //compile shaders for render texture next
@@ -960,8 +1026,7 @@ int main(int argc, char** argv)
 
         //intialize render texure, set filtering and bind
         RenderToTexture();
-
-    }
+   }
 
 
     //set the teapot camera to active by default

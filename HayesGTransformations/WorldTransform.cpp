@@ -9,6 +9,10 @@ WorldTransform::WorldTransform() {
 
 }
 
+WorldTransform::WorldTransform(const char* fileName) {
+	this->objectFileName = fileName;
+}
+
 
 void WorldTransform::SetScale(float scale) {
 	this->scale = scale;
@@ -92,9 +96,9 @@ glm::mat4 WorldTransform::GetMat() {
 //centers the object, sets initial pos, rot, and scale
 void WorldTransform::InitializeObject() {
 	//compute the bounding box to center the object in local space
-	mesh.ComputeBoundingBox();
-	cy::Vec3f boundMin = mesh.GetBoundMin();
-	cy::Vec3f boundMax = mesh.GetBoundMax();
+	mesh->ComputeBoundingBox();
+	cy::Vec3f boundMin = mesh->GetBoundMin();
+	cy::Vec3f boundMax = mesh->GetBoundMax();
 	cy::Vec3f centerPoint;
 	centerPoint.x = (boundMin.x + boundMax.x) / 2;
 	centerPoint.y = (boundMin.y + boundMax.y) / 2;
