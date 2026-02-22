@@ -60,6 +60,7 @@
 
 */
 
+//adding test commit - HG
 
 //should we render to a plane or not
 bool renderToTexture = false;
