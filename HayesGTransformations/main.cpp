@@ -15,7 +15,6 @@
 #include <string>
 #include <sstream>
 #include <iterator>
-#include "lodepng.h"
 //cem yuksul libraries
 #include "cyCore.h"
 #include "cyTriMesh.h"
@@ -27,7 +26,7 @@
 #include "LightInfo.h"
 #include "ProgramInfo.h"
 #include "ColorInfo.h"
-
+#include "ImageLoader.h"
 //Hayes Geldmacher - 2/18  /26
 //CS 6610 - Project 4: redux
 
@@ -60,7 +59,6 @@
 
 */
 
-//adding test commit - HG
 
 //should we render to a plane or not
 bool renderToTexture = false;
@@ -73,6 +71,9 @@ ProgramInfo teapotInfo;
 
 //program info for the render plane
 ProgramInfo planeInfo;
+
+//program info for the environment cube
+ProgramInfo cubeInfo;
 
 cy::GLRenderTexture2D renderBuffer;
 
@@ -102,7 +103,9 @@ float animateSpeed = 0.05f;
 WorldTransform planeObject;
 
 //instance of world object transform class, generates transformation matrix
-WorldTransform objectWorldTrans;
+WorldTransform teapotObject;
+
+WorldTransform cubeObject;
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
@@ -154,7 +157,13 @@ struct persProj {
 //instance of projection info struct
 static persProj projInfo;
 
-std::vector<Vertex> vertexData;
+
+std::vector<Vertex> teapotVertexData;
+
+std::vector<Vertex> cubeVertexData;
+
+//image loader object for loading texture data from image files
+ImageLoader imageLoader;
 
 //create a color for R,G,B, and store in an array
 Color red(0.5, true, true);
@@ -170,7 +179,7 @@ void SetUniformAttributesLighting(GLuint &program) {
     GLint uniformLocation;
 
     //update the uniform color variable in frag shader
-    glm::vec3 objectColor = objectWorldTrans.GetColor();
+    glm::vec3 objectColor = teapotObject.GetColor();
     uniformLocation = glGetUniformLocation(program, "objectColor");
     glUniform3f(uniformLocation, objectColor.x, objectColor.y, objectColor.z);
 
@@ -240,12 +249,12 @@ void OnDisplay() {
     glBindVertexArray(teapotInfo.vao);
     
     //update object rotation
-    objectWorldTrans.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+    teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
 
     //sets the camera target to teapot
-    camera.SetTarget(objectWorldTrans.GetPosition());
+    camera.SetTarget(teapotObject.GetPosition());
 
-    SetUniformAttributesTransformations(teapotInfo, objectWorldTrans, camera);
+    SetUniformAttributesTransformations(teapotInfo, teapotObject, camera);
 
     //set uniform lighting atttributes
     SetUniformAttributesLighting(teapotInfo.programID);
@@ -315,31 +324,15 @@ void InitializeObject() {
     centerPoint.z = (boundMin.z + boundMax.z) / 2;
 
     //set object starting position, rotation, scale
-    objectWorldTrans.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    objectWorldTrans.SetRotation(0.0f, 0.0f, 0.0f);
-    objectWorldTrans.SetPosition(0.0, 0.0f, -25.0f);
-    objectWorldTrans.SetScale(1.0f);
-}
-
-//use lodePNG to load an image from a filename
-unsigned int loadImage(std::vector<unsigned char>& image, unsigned int& width, unsigned int& height, const std::string& fileName) {
-    unsigned int success = lodepng::decode(image, width, height, fileName);
-
-    //check if the image was successfully loaded from the filename
-    if (success == 0) {
-
-        std::cout << "Image map was successfully loaded from mtl file:  " << fileName << std::endl;
-    }
-    else {
-        std::cout << "Image map failed to load from mtl file!: " << fileName << std::endl;
-    }
-
-    return success;
+    teapotObject.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
+    teapotObject.SetRotation(0.0f, 0.0f, 0.0f);
+    teapotObject.SetPosition(0.0, 0.0f, -25.0f);
+    teapotObject.SetScale(1.0f);
 }
 
 //creates and binds a texture, given a specified filename and uniform variable
 //currenlty used for both diffuse and specularity
-void BindTextures(ProgramInfo &programInfo, const std::string& fileName, GLuint& texID, const GLchar* uniformName) {
+void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLuint& texID, const GLchar* uniformName) {
 
     //create the texture variable
     glGenTextures(1, &texID);
@@ -351,7 +344,7 @@ void BindTextures(ProgramInfo &programInfo, const std::string& fileName, GLuint&
     unsigned int textureHeight = 0;
 
     //load the image using lodePNG and output to image vector
-    unsigned int imageSuccess = loadImage(image, textureWidth, textureHeight, fileName);
+     unsigned int imageSuccess = imageLoader.loadImage(image, textureWidth, textureHeight, fileName);
 
     //bind texture before filling with image data
     glActiveTexture(GL_TEXTURE0 + texID); //define unit zero, is also default unit
@@ -476,10 +469,15 @@ void GenerateTextures() {
     std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
 
     //create and bind texture diffuse image
-    BindTextures(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
+    //lets test with the other files to see if they work out the box
+    //BindTextures(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
+    //BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex", false);
+
+    //test with PNG to see if this works!
+    BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
 
     //do the same thing now for the specular texture
-    BindTextures(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
+    BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
 
 }
 
@@ -491,35 +489,37 @@ void CubeMap(){
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, texID);
 
-    //do this for ALL 6 FACES!!
-
-    //placeholder image data 
-    float imageData[3] = {
-        1.0f, 1.0f, 1.0f
+    //create array of texture face fileNames
+    std::vector<const char*> faceNames = {
+        "cubemap_negx",
+        "cubemap_negy",
+        "cubemap_negz",
+        "cubemap_posx",
+        "cubemap_posy",
+        "cubemap_posz"
     };
 
-    glTexImage2D(
-        GL_TEXTURE_CUBE_MAP_POSITIVE_X,
-        0,        //mipmap level 0
-        GL_RGBA,  //internal format
-        width,    //image width
-        height,   //image height
-        0,        //borderr (must be 0)
-        GL_RGBA,  //format
-        GL_UNSIGNED_BYTE,  //data type
-        imageData //pixel array data
-    );
 
-    //faces to do this for:
-    /*
-        GL_TEXTURE_CUBE_MAP_POSITIVE_X
-        GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-        GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-        GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-        GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-        GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
-    */
-   
+    //for loop to generate texture images for all 6 faces
+    int width, height, colorChannels;
+    unsigned char* image;
+    for (int i = 0; i < faceNames.size(); i++) {
+        image = imageLoader.loadImageFromPNG(faceNames[i], width, height, colorChannels);
+        glTexImage2D(
+            //iterating the enum eahc time to move through each face
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+            0,        //mipmap level 0
+            GL_RGBA,  //internal format
+            width,    //image width
+            height,   //image height
+            0,        //borderr (must be 0)
+            GL_RGBA,  //format
+            GL_UNSIGNED_BYTE,  //data type
+            &image[0] //pixel array data
+        );
+
+    }
+    
     //next, generate a few mipmaps
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
@@ -567,7 +567,7 @@ void CubeMap(){
 }
 
 //creates buffer for vertex pos and normal info, sets related attributes
-void CreateBuffers(GLuint &vbo, WorldTransform &object) {
+void CreateBuffers(GLuint &vbo, WorldTransform &object, std::vector<Vertex> &vertexData) {
     //create the mesh from obj data
     mesh = LoadObjectFile("teapot.obj");
 
@@ -719,12 +719,6 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
     //stores the connections betwen a buffer and attributes for a particular object
     glGenVertexArrays(1, &vaoID);
     glBindVertexArray(vaoID);
-
-   
-    
-    
-   
-  
 }
 
 //idle callback 
@@ -744,7 +738,7 @@ void OnIdle() {
     float animateIncrement = animateSpeed * timeDifference;
 
     //if object is idly rotation, increase rotation angle
-    if (objectWorldTrans.rotating) {
+    if (teapotObject.rotating) {
         angleInRadians += animateIncrement;
     }
 
@@ -771,7 +765,7 @@ void OnIdle() {
     }
 
     //assign updated color values to the mesh teapot object
-    objectWorldTrans.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
+    teapotObject.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
 
     //set previous time
     previousTime = currentTime;
@@ -826,7 +820,7 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     }
     else if (key == 'r') {
         //toggle object idle rotation
-        objectWorldTrans.ToggleRotating();
+        teapotObject.ToggleRotating();
     }
 }
 
@@ -946,11 +940,16 @@ int main(int argc, char** argv)
     //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
 
     //create attribute buffers for vertex position and normal data
-    CreateBuffers(teapotInfo.vbo, objectWorldTrans);
+    CreateBuffers(teapotInfo.vbo, teapotObject, teapotVertexData);
 
     //set initial mesh rot, pos, and scale
     InitializeObject();
 
+    //compile shaders for the environment cubemap
+    CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
+
+    //create buffers for env cube
+    CreateBuffers(cubeInfo.vbo, cubeObject, cubeVertexData);
     
    if (renderToTexture) {
         //compile shaders for render texture next

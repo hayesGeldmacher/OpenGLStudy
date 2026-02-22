@@ -143,10 +143,12 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ColorInfo.h" />
+    <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="LightInfo.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="ProgramInfo.h" />
     <ClInclude Include="ProjectionInfo.h" />
+    <ClInclude Include="stb_image.h" />
     <ClInclude Include="Vertex.h" />
     <ClInclude Include="WorldTransform.h" />
   </ItemGroup>
