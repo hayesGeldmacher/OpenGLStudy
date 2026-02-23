@@ -264,6 +264,9 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
 //called when GLUT draws something to screen
 void OnDisplay() {
 
+    glClearColor(red.value, blue.value, green.value, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
     if (renderToTexture) {
         renderBuffer.Bind();
         //create mipmaps each frame
@@ -273,24 +276,6 @@ void OnDisplay() {
        // renderBuffer.Unbind();
         renderBuffer.BindTexture(0);
     }
-    glClearColor(red.value, blue.value, green.value, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-
-    glDepthMask(GL_FALSE);
-
-    //render cube
-    glUseProgram(cubeInfo.programID);
-    glBindVertexArray(cubeInfo.vao);
-
-    //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
-    SetUniformEnvironment(cubeInfo, cubeObject, camera);
-    
-
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-    glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
-    glDepthMask(GL_TRUE);
-   
 
     if (renderSphere) {
         glUseProgram(sphereInfo.programID);
@@ -357,6 +342,23 @@ void OnDisplay() {
 
             glDrawArrays(GL_TRIANGLES, 0, 6);
      }
+
+
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+
+    //render cube
+    glUseProgram(cubeInfo.programID);
+    glBindVertexArray(cubeInfo.vao);
+
+    //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
+    SetUniformEnvironment(cubeInfo, cubeObject, camera);
+
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+    glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
 
     //swap buffers, signifies that we are done rendering this frame
     glutSwapBuffers();
