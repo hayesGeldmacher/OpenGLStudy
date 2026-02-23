@@ -65,7 +65,10 @@
 bool renderToTexture = false;
 
 //render either a sphere or teapot
-bool renderSphere = true;
+bool renderSphere = false;
+
+//should we use reflections or textures
+bool useReflections = false;
 
 //teapot mesh being loaded in
 cy::TriMesh teapotMesh;
@@ -118,7 +121,7 @@ float animateSpeed = 0.05f;
 WorldTransform planeObject;
 
 //instance of world object transform class, generates transformation matrix
-WorldTransform teapotObject("teapot.obj");
+WorldTransform teapotObject("teapotReflection.obj");
 
 WorldTransform cubeObject("cube.obj");
 
@@ -308,10 +311,16 @@ void OnDisplay() {
         //set uniform lighting atttributes
         SetUniformAttributesLighting(teapotInfo.programID, camera, teapotObject);
 
+        if (useReflections) {
+            glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+        }
+        else {
+
         //bind both textures being used
         glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDDiffuse);
         glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDSpec);
 
+        }
         glDrawArrays(GL_TRIANGLES, 0, teapotObject.facesNumber);
     }
 
@@ -1038,7 +1047,6 @@ int main(int argc, char** argv)
     //create and bind 6 texture faces for the cubemap
     BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
-    
     if (renderSphere) {
         CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
         CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
@@ -1046,15 +1054,26 @@ int main(int argc, char** argv)
     }
     else {
 
-    //compile shaders, create program, load mesh
-     CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
-    //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
+        if (useReflections) {
+            //compile shaders, create program, load mesh
+             CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
+            //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
 
-    //create attribute buffers for vertex position and normal data
-    CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, true);
+            //create attribute buffers for vertex position and normal data
+            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, true);
+        }
+        else{
+            //compile shaders, create program, load mesh
+            CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
+            //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
 
-    //set initial mesh rot, pos, and scale
-    InitializeObject(teapotMesh);
+            //create attribute buffers for vertex position and normal data
+            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
+        }
+        
+
+        //set initial mesh rot, pos, and scale
+        InitializeObject(teapotMesh);
 
     }
 
@@ -1069,7 +1088,6 @@ int main(int argc, char** argv)
         //intialize render texure, set filtering and bind
         RenderToTexture();
    }
-
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);
