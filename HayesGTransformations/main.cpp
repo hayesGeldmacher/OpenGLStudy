@@ -64,10 +64,20 @@
 //should we render to a plane or not
 bool renderToTexture = false;
 
+//render either a sphere or teapot
+bool renderSphere = true;
+
 //teapot mesh being loaded in
 cy::TriMesh teapotMesh;
 
+//cube mesh used for background
 cy::TriMesh cubeMesh;
+
+//sphere mesh used instead of teapot for testing
+cy::TriMesh sphereMesh;
+
+//program info for the sphereMesh
+ProgramInfo sphereInfo;
 
 //program info for the teapot
 ProgramInfo teapotInfo;
@@ -96,7 +106,7 @@ static float angleInRadians = 0.0f;
 //lighting data
 glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
-float ambientLightIntensity = 0.1f;
+float ambientLightIntensity = 0.7f;
 static LightInfo lightInfo(lightColor, ambientColor, ambientLightIntensity);
 
 //animation time-tracking
@@ -111,6 +121,8 @@ WorldTransform planeObject;
 WorldTransform teapotObject("teapot.obj");
 
 WorldTransform cubeObject("cube.obj");
+
+WorldTransform sphereObject("sphere.obj");
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
@@ -174,12 +186,12 @@ Color* colors[] = { &red, &blue, &green };
 glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 //called during onDisplay, sets all uniform shader variables
-void SetUniformAttributesLighting(GLuint &program) {
+void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransform &object) {
 
     GLint uniformLocation;
 
     //update the uniform color variable in frag shader
-    glm::vec3 objectColor = teapotObject.GetColor();
+    glm::vec3 objectColor = object.GetColor();
     uniformLocation = glGetUniformLocation(program, "objectColor");
     glUniform3f(uniformLocation, objectColor.x, objectColor.y, objectColor.z);
 
@@ -273,32 +285,50 @@ void OnDisplay() {
 
     //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
     SetUniformEnvironment(cubeInfo, cubeObject, camera);
+    
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
     glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
     glDepthMask(GL_TRUE);
    
 
-    //use the desired shader program
-    glUseProgram(teapotInfo.programID);
-    glBindVertexArray(teapotInfo.vao);
+    if (renderSphere) {
+        glUseProgram(sphereInfo.programID);
+        glBindVertexArray(sphereInfo.vao);
+
+        //update object rotation
+        sphereObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+
+        //sets the camera target to teapot
+        camera.SetTarget(sphereObject.GetPosition());
+        SetUniformAttributesTransformations(sphereInfo, sphereObject, camera);
+        SetUniformAttributesLighting(sphereInfo.programID, camera, sphereObject);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+        glDrawArrays(GL_TRIANGLES, 0, sphereObject.facesNumber);
+    }
+    else {
+
+        //use the desired shader program
+        glUseProgram(teapotInfo.programID);
+        glBindVertexArray(teapotInfo.vao);
     
-    //update object rotation
-    teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+        //update object rotation
+        teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
 
-    //sets the camera target to teapot
-    camera.SetTarget(teapotObject.GetPosition());
+        //sets the camera target to teapot
+        camera.SetTarget(teapotObject.GetPosition());
 
-    SetUniformAttributesTransformations(teapotInfo, teapotObject, camera);
+        SetUniformAttributesTransformations(teapotInfo, teapotObject, camera);
 
-    //set uniform lighting atttributes
-    SetUniformAttributesLighting(teapotInfo.programID);
+        //set uniform lighting atttributes
+        SetUniformAttributesLighting(teapotInfo.programID, camera, teapotObject);
 
-    //bind both textures being used
-    glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDDiffuse);
-    glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDSpec);
+        //bind both textures being used
+        glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDDiffuse);
+        glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDSpec);
 
-    glDrawArrays(GL_TRIANGLES, 0, teapotObject.facesNumber);
+        glDrawArrays(GL_TRIANGLES, 0, teapotObject.facesNumber);
+    }
 
     if (renderToTexture) {
 
@@ -627,6 +657,8 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
         const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
         const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
 
+        if (i == 0) { std::cout << "DOES HAVE NORMALS? "<< object.objectFileName << "" << hasNormals << std::endl; }
+
         for (int c = 0; c < 3; c++) {
             // store position data
             const auto& point = mesh.V(face.v[c]);
@@ -716,11 +748,11 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
     glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::VERTEX::COMPILATION_FAILED" <<
+        std::cout << "ERROR:SHADER::VERTEX::COMPILATION_FAILED FOR:" << vertName <<
             infoLog << std::endl;
     }
     else {
-        std::cout << "Vertex shader compilation successful" << std::endl;
+        std::cout << "Vertex shader compilation successful for " << vertName << std::endl;
     }
 
     //compile fragment shader
@@ -737,11 +769,11 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
     glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED" <<
+        std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED FOR: " << fragName <<
             infoLog << std::endl;
     }
     else {
-        std::cout << "Fragment shader compilation successful" << std::endl;
+        std::cout << "Fragment shader compilation successful for " << fragName << std::endl;
     }
 
     //create and link program
@@ -1004,6 +1036,13 @@ int main(int argc, char** argv)
     //create and bind 6 texture faces for the cubemap
     BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
+    
+    if (renderSphere) {
+        CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
+        CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
+        InitializeObject(sphereMesh);
+    }
+    else {
 
     //compile shaders, create program, load mesh
      CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
@@ -1015,8 +1054,9 @@ int main(int argc, char** argv)
     //set initial mesh rot, pos, and scale
     InitializeObject(teapotMesh);
 
-    
-    
+    }
+
+
    if (renderToTexture) {
         //compile shaders for render texture next
         CompileShaders("renderText.vert", "renderText.frag", planeInfo.vao, planeInfo.programID);

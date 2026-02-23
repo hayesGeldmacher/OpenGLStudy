@@ -44,6 +44,8 @@
     </None>
     <None Include="cubeMap.vert" />
     <None Include="cubeMap.frag" />
+    <None Include="reflection.vert" />
+    <None Include="reflection.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">
