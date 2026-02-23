@@ -77,12 +77,15 @@ glm::mat4 WorldTransform::GetMat() {
 	//apply the world transformation
 	modelMat = glm::translate(modelMat, position);
 
-	//apply initial rotation to orient object upright
-	modelMat = glm::rotate(modelMat, -90.0f, glm::vec3(1.0f, 0.0f, 0.0f));
-
 	//apply constant animating rotation
 	float angleInRadians = glm::radians(rotation.x);
-	modelMat = glm::rotate(modelMat, angleInRadians, glm::vec3(1.0f, 1.0f, 1.0f));
+	modelMat = glm::rotate(modelMat, angleInRadians, glm::vec3(1.0f, 0.0f, 0.0f));
+
+	angleInRadians = glm::radians(rotation.y);
+	modelMat = glm::rotate(modelMat, angleInRadians, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	angleInRadians = glm::radians(rotation.z);
+	modelMat = glm::rotate(modelMat, angleInRadians, glm::vec3(0.0f, 0.0f, 1.0f));
 
 	//applay scaling
 	modelMat = glm::scale(modelMat, glm::vec3(scale,scale, scale));
@@ -93,22 +96,5 @@ glm::mat4 WorldTransform::GetMat() {
 	return modelMat;
 }
 
-//centers the object, sets initial pos, rot, and scale
-void WorldTransform::InitializeObject() {
-	//compute the bounding box to center the object in local space
-	mesh->ComputeBoundingBox();
-	cy::Vec3f boundMin = mesh->GetBoundMin();
-	cy::Vec3f boundMax = mesh->GetBoundMax();
-	cy::Vec3f centerPoint;
-	centerPoint.x = (boundMin.x + boundMax.x) / 2;
-	centerPoint.y = (boundMin.y + boundMax.y) / 2;
-	centerPoint.z = (boundMin.z + boundMax.z) / 2;
 
-	//set object starting position, rotation, scale
-	SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-	SetRotation(0.0f, 0.0f, 0.0f);
-	SetPosition(0.0, 0.0f, -25.0f);
-	SetScale(1.0f);
-
-}
 

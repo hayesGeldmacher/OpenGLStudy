@@ -62,7 +62,7 @@
 
 
 //should we render to a plane or not
-bool renderToTexture = false;
+bool renderToTexture = true;
 
 //render either a sphere or teapot
 bool renderSphere = false;
@@ -90,8 +90,6 @@ ProgramInfo planeInfo;
 
 //program info for the environment cube
 ProgramInfo cubeInfo;
-
-
 
 cy::GLRenderTexture2D renderBuffer;
 
@@ -264,6 +262,36 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
+
+void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object) {
+    //use the desired shader program
+    glUseProgram(programInfo.programID);
+    glBindVertexArray(programInfo.vao);
+
+    //update object rotation
+    object.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+
+    //sets the camera target to teapot
+    camera.SetTarget(object.GetPosition());
+
+    SetUniformAttributesTransformations(programInfo, object, camera);
+
+    //set uniform lighting atttributes
+    SetUniformAttributesLighting(programInfo.programID, camera, object);
+
+    if (useReflections) {
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+    }
+    else {
+
+        //bind both textures being used
+        glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
+        glBindTexture(GL_TEXTURE_2D, programInfo.texIDSpec);
+
+    }
+    glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
+}
+
 //called when GLUT draws something to screen
 void OnDisplay() {
 
@@ -296,44 +324,25 @@ void OnDisplay() {
     }
     else {
 
-        //use the desired shader program
-        glUseProgram(teapotInfo.programID);
-        glBindVertexArray(teapotInfo.vao);
-    
-        //update object rotation
-        teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-        //sets the camera target to teapot
-        camera.SetTarget(teapotObject.GetPosition());
-
-        SetUniformAttributesTransformations(teapotInfo, teapotObject, camera);
-
-        //set uniform lighting atttributes
-        SetUniformAttributesLighting(teapotInfo.programID, camera, teapotObject);
-
-        if (useReflections) {
-            glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-        }
-        else {
-
-        //bind both textures being used
-        glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDDiffuse);
-        glBindTexture(GL_TEXTURE_2D, teapotInfo.texIDSpec);
-
-        }
-        glDrawArrays(GL_TRIANGLES, 0, teapotObject.facesNumber);
+        
+        //render teapot once for render buffer reflections
+        RenderTeapotObject(teapotInfo, camera, teapotObject);
     }
 
     if (renderToTexture) {
 
         glBindVertexArray(0);
         renderBuffer.Unbind();
-  
+
+
         // clear all relevant buffers
          glClearColor(0.0f, 0.0f, 0.00f, 1.0f);
          glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-         renderBuffer.BindTexture(0);
+        renderBuffer.BindTexture(0);
+        
+        //render teapot again to actually display in scene
+        RenderTeapotObject(teapotInfo, camera, teapotObject);
 
     
              //after all of that, let's try rendering the plane as well!
@@ -342,12 +351,12 @@ void OnDisplay() {
             //glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
 
             //update object rotation
-            planeObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+           // planeObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
 
             //set a new lookat target for the camera to mesh object location
-            planeCamera.SetTarget(planeObject.GetPosition());
+            //planeCamera.SetTarget(planeObject.GetPosition());
 
-            SetUniformAttributesTransformations(planeInfo,  planeObject, planeCamera);
+            SetUniformAttributesTransformations(planeInfo,  planeObject, camera);
 
             glDrawArrays(GL_TRIANGLES, 0, 6);
      }
@@ -391,7 +400,7 @@ cy::TriMesh LoadObjectFile(const char* fileName) {
 }
 
 //centers the object, sets initial pos, rot, and scale
-void InitializeObject(cy::TriMesh &mesh) {
+void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
     //compute the bounding box to center the object in local space
     mesh.ComputeBoundingBox();
     cy::Vec3f boundMin = mesh.GetBoundMin();
@@ -402,10 +411,10 @@ void InitializeObject(cy::TriMesh &mesh) {
     centerPoint.z = (boundMin.z + boundMax.z) / 2;
 
     //set object starting position, rotation, scale
-    teapotObject.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    teapotObject.SetRotation(0.0f, 0.0f, 0.0f);
-    teapotObject.SetPosition(0.0, 0.0f, -25.0f);
-    teapotObject.SetScale(1.0f);
+    object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
+    object.SetRotation(120, 0, 0 );
+    object.SetPosition(0.0, 0.0f, -25.0f);
+    object.SetScale(1.0f);
 }
 
 //creates and binds a texture, given a specified filename and uniform variable
@@ -1050,7 +1059,7 @@ int main(int argc, char** argv)
     if (renderSphere) {
         CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
         CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
-        InitializeObject(sphereMesh);
+        InitializeObject(sphereMesh, sphereObject);
     }
     else {
 
@@ -1073,7 +1082,7 @@ int main(int argc, char** argv)
         
 
         //set initial mesh rot, pos, and scale
-        InitializeObject(teapotMesh);
+        InitializeObject(teapotMesh, teapotObject);
 
     }
 
@@ -1087,6 +1096,10 @@ int main(int argc, char** argv)
 
         //intialize render texure, set filtering and bind
         RenderToTexture();
+
+        planeObject.SetRotation(90.0f, 0.0f, 0.0f);
+        planeObject.SetScale(5.0f);
+        planeObject.SetPosition(0.0, -8.0f, -25.0f);
    }
 
     //set the teapot camera to active by default
