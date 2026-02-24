@@ -1,7 +1,6 @@
 #version 330 core
 
 layout(location = 0) in vec3 pos;
-layout(location = 1) in vec4 clr;
 layout(location = 2) in vec3 normal;
 layout(location = 3) in vec2 texCord;
 
@@ -23,8 +22,6 @@ uniform sampler2D tex;
 void main(){
 
 	gl_Position = projection * view * world * vec4(pos.x,pos.y,pos.z,1.0f);
-
-	vColor = clr.rbg;
 
 	FragPos = vec3( world * vec4(pos, 1.0f));
 

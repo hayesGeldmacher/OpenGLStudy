@@ -14,10 +14,10 @@ uniform vec3 objectColor;
 uniform vec3 lightColor;
 uniform float ambientStrength;
 uniform float specShine;
+uniform float reflectiveStrength;
 
 
 void main(){
-	
 	
 	vec3 norm = normalize(vNormal);
 	vec3 lightDir = normalize(lightPos - FragPos);
@@ -42,22 +42,11 @@ void main(){
 	//get reflection colors
 	vec3 reflection = reflect(viewDir, normalize(vNormal));
 
-	//set up final ambient color as a multiplication of the diffuse texture with light color
-	vec3 ambientFinal = ambientColor * vec3(texture(env, reflection));
-
-	//set up final diffuse color
-	vec3 diffuseFinal = diffuse * vec3(texture(env, reflection));
-
 	//add ambient, diffuse, and spec, multiply by changing object color for final calculation
-	vec3 resultColor = ( ambientFinal + diffuseFinal + specular);
-	//color = vec4(resultColor, 1.0f);
+	vec3 resultColor = ( ambientColor + diffuse + specular);
 	
-	color = texture(env, reflection) * vec4(resultColor, 1.0f);
-	
-	//color = vec4(1.0f, 0.1f, .03f, 1.0f);
-	
-	
-	
-	
-	
+	vec3 reflectedColor = texture(env, reflection).rgb;
+	vec3 finalColor = mix(resultColor, reflectedColor, reflectiveStrength);
+	color = vec4(finalColor, 1.0f);
+
 }

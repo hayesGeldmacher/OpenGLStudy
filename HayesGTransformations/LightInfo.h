@@ -107,4 +107,5 @@ public:
 	float minZoom = 5.0f;
 
 
+
 };

@@ -47,6 +47,10 @@ public:
 		enabled = activate;
 	}
 
+	void Flip();
+
+	void GetYPosition();
+
 private:
 	
 	bool useFreeLook = false;

@@ -68,7 +68,7 @@ bool renderToTexture = true;
 bool renderSphere = false;
 
 //should we use reflections or textures
-bool useReflections = false;
+bool useReflections =true;
 
 //teapot mesh being loaded in
 cy::TriMesh teapotMesh;
@@ -107,7 +107,7 @@ static float angleInRadians = 0.0f;
 //lighting data
 glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
-float ambientLightIntensity = 0.7f;
+float ambientLightIntensity = 0.1f;
 static LightInfo lightInfo(lightColor, ambientColor, ambientLightIntensity);
 
 //animation time-tracking
@@ -216,21 +216,38 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransfor
     glm::vec3 viewPos = camera.GetPosition();
     uniformLocation = glGetUniformLocation(program, "viewPos");
     glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
+
+    //set reflection very high for now
+    uniformLocation = glGetUniformLocation(program, "reflectiveStrength");
+    glUniform1f(uniformLocation, 0.65f);
+
 }
 
-void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransform &object, Camera &camera) {
+void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransform &object, Camera &camera, bool flipped) {
     
     //generate view matrix from camera
-    glm::mat4 camViewMat = camera.GetMatrix();
 
+    glm::mat4 camViewMat = camera.GetMatrix();
+    glm::mat4 worldMatrix = object.GetMat();
+    
     //generate perpsective/ortho projection matrix
     glm::mat4 projMat = projInfo.GetProjection();
 
     GLint uniformLocation;
 
+    //returns the inverse of camera position
+    float negativeCamY = camera.GetPosition().y;
+    float negativeCamX = camera.GetPosition().x;
+    float negativeCamZ = camera.GetPosition().z;
+
+    if (flipped) {
+        
+          camViewMat = camViewMat * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, -1.0f, 1.0f));
+    }
+
     //send the world transform variable
     uniformLocation = glGetUniformLocation(programInfo.programID, "world");
-    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &object.GetMat()[0][0]);
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
 
     //send the camera view variable
     uniformLocation = glGetUniformLocation(programInfo.programID, "view");
@@ -263,7 +280,7 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
 }
 
 
-void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object) {
+void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped) {
     //use the desired shader program
     glUseProgram(programInfo.programID);
     glBindVertexArray(programInfo.vao);
@@ -274,7 +291,7 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     //sets the camera target to teapot
     camera.SetTarget(object.GetPosition());
 
-    SetUniformAttributesTransformations(programInfo, object, camera);
+    SetUniformAttributesTransformations(programInfo, object, camera, flipped);
 
     //set uniform lighting atttributes
     SetUniformAttributesLighting(programInfo.programID, camera, object);
@@ -292,76 +309,7 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
-//called when GLUT draws something to screen
-void OnDisplay() {
-
-    glClearColor(red.value, blue.value, green.value, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    if (renderToTexture) {
-        renderBuffer.Bind();
-        //create mipmaps each frame
-        renderBuffer.BuildTextureMipmaps();
-    }
-    else {
-       // renderBuffer.Unbind();
-        renderBuffer.BindTexture(0);
-    }
-
-    if (renderSphere) {
-        glUseProgram(sphereInfo.programID);
-        glBindVertexArray(sphereInfo.vao);
-
-        //update object rotation
-        sphereObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-        //sets the camera target to teapot
-        camera.SetTarget(sphereObject.GetPosition());
-        SetUniformAttributesTransformations(sphereInfo, sphereObject, camera);
-        SetUniformAttributesLighting(sphereInfo.programID, camera, sphereObject);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-        glDrawArrays(GL_TRIANGLES, 0, sphereObject.facesNumber);
-    }
-    else {
-
-        
-        //render teapot once for render buffer reflections
-        RenderTeapotObject(teapotInfo, camera, teapotObject);
-    }
-
-    if (renderToTexture) {
-
-        glBindVertexArray(0);
-        renderBuffer.Unbind();
-
-
-        // clear all relevant buffers
-         glClearColor(0.0f, 0.0f, 0.00f, 1.0f);
-         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        renderBuffer.BindTexture(0);
-        
-        //render teapot again to actually display in scene
-        RenderTeapotObject(teapotInfo, camera, teapotObject);
-
-    
-             //after all of that, let's try rendering the plane as well!
-            glUseProgram(planeInfo.programID);
-            glBindVertexArray(planeInfo.vao);
-            //glBindTexture(GL_TEXTURE_2D, textureColorBuffer);
-
-            //update object rotation
-           // planeObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-            //set a new lookat target for the camera to mesh object location
-            //planeCamera.SetTarget(planeObject.GetPosition());
-
-            SetUniformAttributesTransformations(planeInfo,  planeObject, camera);
-
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-     }
-
-
+void RenderEnvironment() {
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
 
@@ -378,6 +326,65 @@ void OnDisplay() {
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
 
+    renderBuffer.BindTexture(0);
+}
+
+//called when GLUT draws something to screen
+void OnDisplay() {
+        
+     renderBuffer.Bind();
+    //create mipmaps each frame
+     renderBuffer.BuildTextureMipmaps();
+    glClearColor(0, 0, 0, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+
+    if (renderSphere) {
+        glUseProgram(sphereInfo.programID);
+        glBindVertexArray(sphereInfo.vao);
+
+        //update object rotation
+        sphereObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+
+        //sets the camera target to teapot
+        camera.SetTarget(sphereObject.GetPosition());
+        SetUniformAttributesTransformations(sphereInfo, sphereObject, camera, false);
+        SetUniformAttributesLighting(sphereInfo.programID, camera, sphereObject);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+        glDrawArrays(GL_TRIANGLES, 0, sphereObject.facesNumber);
+    }
+    else {
+
+        //render teapot once for render buffer reflections
+
+        RenderTeapotObject(teapotInfo, camera, teapotObject, true);
+    }
+
+
+    glBindVertexArray(0);
+    renderBuffer.Unbind();
+
+
+    // clear all relevant buffers
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    renderBuffer.BindTexture(0);
+  
+     glUseProgram(planeInfo.programID);
+     glBindVertexArray(planeInfo.vao);
+     
+     SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
+     SetUniformAttributesTransformations(planeInfo,  planeObject, camera, false);
+     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+
+     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    //render teapot again to actually display in scene
+    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
+
+    RenderEnvironment();
+    
     //swap buffers, signifies that we are done rendering this frame
     glutSwapBuffers();
 }
@@ -412,8 +419,7 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
 
     //set object starting position, rotation, scale
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetRotation(120, 0, 0 );
-    object.SetPosition(0.0, 0.0f, -25.0f);
+    object.SetPosition(0.0, 8.0f, -25.0f);
     object.SetScale(1.0f);
 }
 
@@ -505,9 +511,9 @@ bool RenderToTexture() {
     //initialize render buffer object
     renderBuffer.Initialize(
         true, //create depth buffer
-        3, //RGB
-        128, //texture width
-        128 //texture height
+        4, //RGBA
+        width, //texture width
+        height //texture height
     );
     
     //build mipmaps
@@ -737,15 +743,19 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, 30 * sizeof(float), &object.planeArray[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(float), &object.planeArrayFlipped[0], GL_STATIC_DRAW);
 
     //interpet position data
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)0);
+
+    //interpret normal data
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 3));
 
     //interpret tex coords data
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (GLvoid*)(sizeof(float) * 3));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
 }
 
 //compiles shaders with given program and file information
@@ -1063,7 +1073,7 @@ int main(int argc, char** argv)
     }
     else {
 
-        if (useReflections) {
+        if (!useReflections) {
             //compile shaders, create program, load mesh
              CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
             //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
@@ -1086,10 +1096,15 @@ int main(int argc, char** argv)
 
     }
 
+    //next, let's render reflections on the plane as well!
+
 
    if (renderToTexture) {
-        //compile shaders for render texture next
-        CompileShaders("renderText.vert", "renderText.frag", planeInfo.vao, planeInfo.programID);
+        //compile shaders for render texture standard
+        //CompileShaders("renderText.vert", "renderText.frag", planeInfo.vao, planeInfo.programID);
+
+        //compile shaders for render texture with refledtions
+        CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
 
         //create buffers for plane object which displays render texture
         CreatePlaneBuffers(planeInfo.vbo, planeObject);
@@ -1097,9 +1112,8 @@ int main(int argc, char** argv)
         //intialize render texure, set filtering and bind
         RenderToTexture();
 
-        planeObject.SetRotation(90.0f, 0.0f, 0.0f);
         planeObject.SetScale(5.0f);
-        planeObject.SetPosition(0.0, -8.0f, -25.0f);
+        planeObject.SetPosition(0.0, 0, -25.0f);
    }
 
     //set the teapot camera to active by default

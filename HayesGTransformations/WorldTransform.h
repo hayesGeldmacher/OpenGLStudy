@@ -83,16 +83,17 @@ public:
 	//stores color
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-	//array of float data, used to render plane
-	float planeArray[30] = {
 
-	 5.0f,  5.0f, 0.0f,      1.0f, 1.0f,
-	 5.0f, -5.0f, 0.0f,      1.0f, 0.0f,
-	-5.0f, -5.0f, 0.0f,      0.0f, 0.0f,
+	float planeArrayFlipped[48] = {
 
-	-5.0f, -5.0f, 0.0f,      0.0f, 0.0f,
-	-5.0f,  5.0f, 0.0f,      0.0f, 1.0f,
-	 5.0f,  5.0f, 0.0f,      1.0f, 1.0f
+		//vertex position	   //normals			//tex coordinates
+		 5.0f,  0.0f, 5.0f,    0.0f, 1.0f, 0.0f,    1.0f, 1.0f,
+		 5.0f, 0.0f, -5.0f,	   0.0f, 1.0f, 0.0f,	1.0f, 0.0f,
+		-5.0f, 0.0f, -5.0f,	   0.0f, 1.0f, 0.0f,    0.0f, 0.0f,
+
+		-5.0f,  0.0f, -5.0f,   0.0f, 1.0f, 0.0f,    0.0f, 0.0f,
+		-5.0f,  0.0f, 5.0f,	   0.0f, 1.0f, 0.0f,	0.0f, 1.0f,
+		 5.0f,  0.0f, 5.0f,	   0.0f, 1.0f, 0.0f,	1.0f, 1.0f
 	};
 
 	//vector of vertex structs, stores pos, normal, and coord data in loaded mesh

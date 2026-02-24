@@ -6,7 +6,6 @@ layout(location = 0) out vec4 color;
 in vec3 vNormal;
 in vec3 FragPos;
 in vec3 lightPos;
-in vec3 vColor; 
 in vec2 vTex;
 
 uniform sampler2D diffuseTex;

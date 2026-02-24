@@ -139,6 +139,8 @@
     <None Include="packages.config" />
     <None Include="reflection.frag" />
     <None Include="reflection.vert" />
+    <None Include="renderedReflections.frag" />
+    <None Include="renderedReflections.vert" />
     <None Include="renderText.frag" />
     <None Include="renderText.vert" />
   </ItemGroup>

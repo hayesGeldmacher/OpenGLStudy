@@ -5,6 +5,7 @@
 
 layout(location = 0) in vec3 pos;
 layout(location = 1) in vec2 texCord;
+layout(location = 2) in vec2 normal;
 
 out vec2 vTex;
 

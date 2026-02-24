@@ -81,6 +81,10 @@ void Camera::OnMouse(int button, int state, int x, int y) {
 	mousePos.y = y;
 }
 
+void Camera::GetYPosition() {
+	std::cout << "Current Y Pos: " << cameraPos.y << std::endl;
+}
+
 //callback for mouse being moved, only active after a button press
 void Camera::OnMouseMotion(int x, int y) {
 		
@@ -133,6 +137,19 @@ void Camera::OnMouseMotion(int x, int y) {
 			if (currentZoom < minZoom) { currentZoom = minZoom; }
 		}
 	}
+
+	UpdateRotation();
+}
+
+void Camera::Flip() {
+	
+	//camera was flipped!
+	std::cout << "CAMERA WAS FLIPPED!" << std::endl;
+	cameraPos.y = -cameraPos.y;
+	cameraFront.y = -cameraFront.y;
+
+	cameraRight = glm::normalize(glm::cross(cameraFront, up));
+	cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
 
 	UpdateRotation();
 }
