@@ -125,6 +125,7 @@ WorldTransform cubeObject("cube.obj");
 
 WorldTransform sphereObject("sphere.obj");
 
+
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
 glm::vec3 camUp(0.0f, 1.0f, 0.0f);
@@ -169,7 +170,7 @@ struct persProj {
     float ar = (float)width / (float)height;
     float FOV = 90.0f;
     float nearZ = 0.1f;
-    float farZ = 100.0f;
+    float farZ = 1000.0f;
     bool usePerspective = true;
 };
 //instance of projection info struct
@@ -268,6 +269,8 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     //generate perpsective/ortho projection matrix
     glm::mat4 projMat = projInfo.GetProjection();
 
+    glm::mat4 worldMat = cubeObject.GetMat();
+
     GLint uniformLocation;
 
     //send the camera view variable
@@ -277,6 +280,10 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     //send the projection variable
     uniformLocation = glGetUniformLocation(programInfo.programID, "projection");
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "world");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMat[0][0]);
 }
 
 
@@ -323,8 +330,8 @@ void RenderEnvironment() {
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
     glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
-    glDepthMask(GL_TRUE);
     glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
 
     renderBuffer.BindTexture(0);
 }
@@ -370,18 +377,21 @@ void OnDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     renderBuffer.BindTexture(0);
+
+    //render teapot again to actually display in scene
+    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
   
      glUseProgram(planeInfo.programID);
      glBindVertexArray(planeInfo.vao);
      
-     SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
+     GLuint uniformLocation;
+     glm::vec3 viewPos = camera.GetPosition();
+     uniformLocation = glGetUniformLocation(planeInfo.programID, "viewPos");
+     glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
      SetUniformAttributesTransformations(planeInfo,  planeObject, camera, false);
      glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
 
      glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    //render teapot again to actually display in scene
-    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
 
     RenderEnvironment();
     
@@ -419,7 +429,7 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
 
     //set object starting position, rotation, scale
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetPosition(0.0, 8.0f, -25.0f);
+    object.SetPosition(0.0, 8.0f, 0.0f);
     object.SetScale(1.0f);
 }
 
@@ -1066,6 +1076,9 @@ int main(int argc, char** argv)
     //create and bind 6 texture faces for the cubemap
     BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
+    //set up cube map to be far from objects
+    cubeObject.SetScale(2.0f);
+
     if (renderSphere) {
         CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
         CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
@@ -1113,14 +1126,16 @@ int main(int argc, char** argv)
         RenderToTexture();
 
         planeObject.SetScale(5.0f);
-        planeObject.SetPosition(0.0, 0, -25.0f);
+        planeObject.SetPosition(0.0, 0, 0.0f);
    }
+
+   
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);
 
     //enable depth z buffer
-    glEnable(GL_DEPTH_TEST);
+   glEnable(GL_DEPTH_TEST);
 
     //Main loop glut operates in
     glutMainLoop();

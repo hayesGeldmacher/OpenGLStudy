@@ -28,7 +28,7 @@ void main(){
 
 	//color = mix(reflectedColor, renderedColor, renderedColor.a);
 	color = renderedColor;
-     //color = vec4(reflection, 1.0f);
+     //color = vec4(reflectedColor);
 	
 	
 

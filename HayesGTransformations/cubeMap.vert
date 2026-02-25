@@ -9,13 +9,14 @@ out vec3 dir;
 
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 world;
 
 void main(){
 
 	 dir = pos;
 
 	 //sets the z component to always be 1.0
-	 vec4 position = projection * view * vec4(pos.x,pos.y,pos.z,1.0f);
+	 vec4 position = projection * view * world * vec4(pos.x,pos.y,pos.z,1.0f);
 	 gl_Position = vec4(position.x, position.y, position.w, position.w);
 
 }
