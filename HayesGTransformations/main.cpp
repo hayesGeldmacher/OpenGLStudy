@@ -332,56 +332,43 @@ void RenderEnvironment() {
 //called when GLUT draws something to screen
 void OnDisplay() {
         
+    //first bind the render buffer
      renderBuffer.Bind();
     //create mipmaps each frame
      renderBuffer.BuildTextureMipmaps();
+
+     //then clear the scene for clean render
     glClearColor(0, 0, 0, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
+    //render teapot once for render buffer reflections
+    RenderTeapotObject(teapotInfo, camera, teapotObject, true);
 
-    if (renderSphere) {
-        glUseProgram(sphereInfo.programID);
-        glBindVertexArray(sphereInfo.vao);
-
-        //update object rotation
-        sphereObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-        //sets the camera target to teapot
-        camera.SetTarget(sphereObject.GetPosition());
-        SetUniformAttributesTransformations(sphereInfo, sphereObject, camera, false);
-        SetUniformAttributesLighting(sphereInfo.programID, camera, sphereObject);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-        glDrawArrays(GL_TRIANGLES, 0, sphereObject.facesNumber);
-    }
-    else {
-
-        //render teapot once for render buffer reflections
-
-        RenderTeapotObject(teapotInfo, camera, teapotObject, true);
-    }
-
-
+    //unbind buffer texture
     glBindVertexArray(0);
     renderBuffer.Unbind();
 
+     // clear all buffers again to clean scene
+     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // clear all relevant buffers
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //render teapot again to actually display in scene
+    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
+    glBindVertexArray(0);
 
-    renderBuffer.BindTexture(0);
-  
      glUseProgram(planeInfo.programID);
      glBindVertexArray(planeInfo.vao);
      
-     SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
+     //SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
+     GLuint uniformLocation;
+     glm::vec3 viewPos = camera.GetPosition();
+     uniformLocation = glGetUniformLocation(planeInfo.programID, "viewPos");
+     glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
      SetUniformAttributesTransformations(planeInfo,  planeObject, camera, false);
      glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
 
      glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    //render teapot again to actually display in scene
-    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
 
     RenderEnvironment();
     
@@ -590,10 +577,6 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
         
         unsigned char* image = imageLoader.loadImageFromPNG(faceNames[i].c_str(), width, height, colorChannels);
         if (image) {
-            std::cout << "WIDTH: " << width << std::endl;
-            std::cout << "HEIGHT: " << height << std::endl;
-            std::cout << "ColorChannels " << colorChannels << std::endl;
-            std::cout << "Generated face number: " << i << std::endl;
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glTexImage2D(
                 //iterating the enum eahc time to move through each face
@@ -640,27 +623,6 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
     //finally, bind cube map texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, texID);
-
-
-    //below will go in main render loop, just writing here for now
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    //draw scene objectts
-   //...
-
-    //background is drawn second so that we don't waste
-    //GPU memory by rendering pixels twice
-    //such as background pixels that are later covered
-    //by object pixels
-
-    //we should use 0.9 or a similarly high number (but less than 1!)
-    //as the z place to render background
-    glDepthMask(GL_FALSE);
-    
-    //draw background
-    //...
-
-    glDepthMask(GL_TRUE);
 }
 
 //creates buffer for vertex pos and normal info, sets related attributes
@@ -682,8 +644,6 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
         const cy::TriMesh::TriFace& face = mesh.F(i);
         const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
         const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
-
-        if (i == 0) { std::cout << "DOES HAVE NORMALS? "<< object.objectFileName << "" << hasNormals << std::endl; }
 
         for (int c = 0; c < 3; c++) {
             // store position data
@@ -1066,13 +1026,7 @@ int main(int argc, char** argv)
     //create and bind 6 texture faces for the cubemap
     BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
-    if (renderSphere) {
-        CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
-        CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
-        InitializeObject(sphereMesh, sphereObject);
-    }
-    else {
-
+        //set up teapot 
         if (!useReflections) {
             //compile shaders, create program, load mesh
              CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
@@ -1089,14 +1043,9 @@ int main(int argc, char** argv)
             //create attribute buffers for vertex position and normal data
             CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
         }
-        
 
         //set initial mesh rot, pos, and scale
         InitializeObject(teapotMesh, teapotObject);
-
-    }
-
-    //next, let's render reflections on the plane as well!
 
 
    if (renderToTexture) {
