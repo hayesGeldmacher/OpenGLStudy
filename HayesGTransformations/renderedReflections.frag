@@ -13,9 +13,7 @@ uniform samplerCube env;
 uniform sampler2D textureColorBuffer;
 
 
-
 void main(){
-
 
 	vec3 viewDir = normalize(FragPos - viewPos);
 
@@ -28,7 +26,7 @@ void main(){
 
 	//color = mix(reflectedColor, renderedColor, renderedColor.a);
 	color = renderedColor;
-     //color = vec4(reflectedColor);
+    // color = vec4(reflectedColor);
 	
 	
 

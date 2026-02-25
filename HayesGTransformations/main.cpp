@@ -243,7 +243,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
 
     if (flipped) {
         
-          camViewMat = camViewMat * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, -1.0f, 1.0f));
+        camViewMat = camViewMat * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, -1.0f, 1.0f));
     }
 
     //send the world transform variable
@@ -259,7 +259,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
-void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera) {
+void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera, bool flipped) {
     
     
     //generate view matrix from camera
@@ -284,8 +284,15 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     //send the camera view variable
     uniformLocation = glGetUniformLocation(programInfo.programID, "world");
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMat[0][0]);
-}
 
+    uniformLocation = glGetUniformLocation(programInfo.programID, "flipped");
+    if (flipped) {
+        glUniform1i(uniformLocation, 1);
+    }
+    else {
+        glUniform1i(uniformLocation, 0);
+    }
+}
 
 void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped) {
     //use the desired shader program
@@ -316,7 +323,7 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
-void RenderEnvironment() {
+void RenderEnvironment(bool flipped) {
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
 
@@ -324,9 +331,8 @@ void RenderEnvironment() {
     glUseProgram(cubeInfo.programID);
     glBindVertexArray(cubeInfo.vao);
 
-    //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
-    SetUniformEnvironment(cubeInfo, cubeObject, camera);
-
+    SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera, true);
+    SetUniformEnvironment(cubeInfo, cubeObject, camera, flipped);
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
     glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
@@ -365,6 +371,7 @@ void OnDisplay() {
         //render teapot once for render buffer reflections
 
         RenderTeapotObject(teapotInfo, camera, teapotObject, true);
+        RenderEnvironment(true);
     }
 
 
@@ -393,7 +400,7 @@ void OnDisplay() {
 
      glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    RenderEnvironment();
+     RenderEnvironment(false);
     
     //swap buffers, signifies that we are done rendering this frame
     glutSwapBuffers();

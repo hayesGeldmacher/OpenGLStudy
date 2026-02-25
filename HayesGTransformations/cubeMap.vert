@@ -10,10 +10,14 @@ out vec3 dir;
 uniform mat4 view;
 uniform mat4 projection;
 uniform mat4 world;
+uniform int flipped;
 
 void main(){
 
 	 dir = pos;
+	 if(flipped == 1){
+		dir.y = 1 - dir.y;
+	 }
 
 	 //sets the z component to always be 1.0
 	 vec4 position = projection * view * world * vec4(pos.x,pos.y,pos.z,1.0f);
