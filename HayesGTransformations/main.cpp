@@ -91,6 +91,7 @@ ProgramInfo planeInfo;
 //program info for the environment cube
 ProgramInfo cubeInfo;
 
+//the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
 
 //number of vertices in mesh
@@ -224,6 +225,7 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransfor
 
 }
 
+//sets MVP-related uniform variables
 void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransform &object, Camera &camera, bool flipped) {
     
     //generate view matrix from camera
@@ -236,11 +238,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
 
     GLint uniformLocation;
 
-    //returns the inverse of camera position
-    float negativeCamY = camera.GetPosition().y;
-    float negativeCamX = camera.GetPosition().x;
-    float negativeCamZ = camera.GetPosition().z;
-
+    //flip the camera on the Y axis for planar reflections
     if (flipped) {
         
         camViewMat = camViewMat * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, -1.0f, 1.0f));
@@ -259,6 +257,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
+//Sets uniform shader variables for the environment cubemap
 void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera, bool flipped) {
     
     
@@ -294,6 +293,7 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     }
 }
 
+//renders the teapot object from start to finish
 void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped) {
     //use the desired shader program
     glUseProgram(programInfo.programID);
@@ -323,7 +323,10 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
+//renders the environment cube map
 void RenderEnvironment(bool flipped) {
+   
+    //disable depth mask so we can render just environment
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
 
@@ -331,15 +334,18 @@ void RenderEnvironment(bool flipped) {
     glUseProgram(cubeInfo.programID);
     glBindVertexArray(cubeInfo.vao);
 
+    //set uniform shader variables
     SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera, true);
     SetUniformEnvironment(cubeInfo, cubeObject, camera, flipped);
 
+    //bind cube map and draw the cube vertices
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
     glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
+
+    //re-enable depth mask when we're done
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
 
-    renderBuffer.BindTexture(0);
 }
 
 //called when GLUT draws something to screen
@@ -392,6 +398,7 @@ void OnDisplay() {
      glBindVertexArray(planeInfo.vao);
      
      GLuint uniformLocation;
+     planeObject.SetRotation(0, angleInRadians, 0);
      glm::vec3 viewPos = camera.GetPosition();
      uniformLocation = glGetUniformLocation(planeInfo.programID, "viewPos");
      glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
@@ -957,8 +964,10 @@ void OnSpecialKeyPressed(int key, int x, int y) {
     //recompile shaders if 'f6' key is pressed
     if (key == GLUT_KEY_F6) {
         std::cout << "Compiled shaders!" << std::endl;
-        CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
-        CompileShaders("renderText.vert", "renderText.frag", planeInfo.vao, planeInfo.programID);
+        
+       // CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
+       // CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
+       // CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
 
     }
 
@@ -1079,13 +1088,10 @@ int main(int argc, char** argv)
         "cubemap_negz.png",
     };
 
-
     //create and bind 6 texture faces for the cubemap
     BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
-    //set up cube map to be far from objects
-    cubeObject.SetScale(2.0f);
-
+    //if render sphere for testing reflections
     if (renderSphere) {
         CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
         CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
@@ -1093,6 +1099,7 @@ int main(int argc, char** argv)
     }
     else {
 
+        //for rendering teapot with brick textures
         if (!useReflections) {
             //compile shaders, create program, load mesh
              CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
@@ -1101,6 +1108,7 @@ int main(int argc, char** argv)
             //create attribute buffers for vertex position and normal data
             CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, true);
         }
+        //for rendering teapot with cubemap reflections
         else{
             //compile shaders, create program, load mesh
             CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
@@ -1110,20 +1118,14 @@ int main(int argc, char** argv)
             CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
         }
         
-
-        //set initial mesh rot, pos, and scale
+        //center teapot, set rot, pos, and scale
         InitializeObject(teapotMesh, teapotObject);
-
     }
 
-    //next, let's render reflections on the plane as well!
-
-
+    //if we are rendering-to-texture, render plane and set up render buffer
    if (renderToTexture) {
-        //compile shaders for render texture standard
-        //CompileShaders("renderText.vert", "renderText.frag", planeInfo.vao, planeInfo.programID);
 
-        //compile shaders for render texture with refledtions
+        //compile shaders for render texture with reflections
         CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
 
         //create buffers for plane object which displays render texture
@@ -1132,11 +1134,10 @@ int main(int argc, char** argv)
         //intialize render texure, set filtering and bind
         RenderToTexture();
 
+        //set up scale + position for object, don't need rotation
         planeObject.SetScale(5.0f);
         planeObject.SetPosition(0.0, 0, 0.0f);
    }
-
-   
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);

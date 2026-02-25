@@ -1,10 +1,7 @@
 #version 330 core
 layout(location = 0) out vec4 color;
 
-in vec4 reflectionPosition;
-in vec2 vTex;
 in vec4 worldPos;
-in vec3 vNormal;
 in vec3 FragPos;
 
 uniform vec3 viewPos;
@@ -15,18 +12,17 @@ uniform sampler2D textureColorBuffer;
 
 void main(){
 
+//get the view direction from camera to pixel 
 	vec3 viewDir = normalize(FragPos - viewPos);
 
-	//get reflection colors
-	vec3 reflection = reflect(viewDir, normalize(vNormal));
-
-	vec4 reflectedColor = texture(env, reflection);
+//get render texture color
 	vec2 projUV = (worldPos.xy / worldPos.w) * 0.5 + 0.5;
 	vec4 renderedColor = texture(textureColorBuffer, projUV);
 
-	//color = mix(reflectedColor, renderedColor, renderedColor.a);
-	color = renderedColor;
-    // color = vec4(reflectedColor);
+//mix the planar reflections to be a bit dark (just my visual preference, not needed)
+	vec3 darkColor = vec3(0.0f, 0.0f, 0.0f);
+	vec3 finalColor = mix(darkColor, renderedColor.rgb, 0.7f);
+	color = vec4(finalColor, 1.0f);
 	
 	
 
