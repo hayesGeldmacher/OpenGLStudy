@@ -143,6 +143,8 @@
     <None Include="renderedReflections.vert" />
     <None Include="renderText.frag" />
     <None Include="renderText.vert" />
+    <None Include="shadowMap.frag" />
+    <None Include="shadowMap.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />

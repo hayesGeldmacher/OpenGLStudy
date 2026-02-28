@@ -48,6 +48,12 @@
     <None Include="reflection.frag" />
     <None Include="renderedReflections.vert" />
     <None Include="renderedReflections.frag" />
+    <None Include="shadowMap.frag">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="shadowMap.vert">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">

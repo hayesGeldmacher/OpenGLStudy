@@ -447,6 +447,131 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
     object.SetScale(1.0f);
 }
 
+//function for creating depth texture, following along with Cem's lecture
+bool CreateDepthTexture() {
+
+    //create and bind new texture
+    GLuint depthMap;
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+
+    int shadowWidth;
+    int shadowHeight;
+
+    //initialize texture image for depth map
+    glTexImage2D(GL_TEXTURE_2D, 
+        0, 
+        GL_DEPTH_COMPONENT,   //specifying that we are storing depth component, not rgba
+        shadowWidth, shadowHeight, 
+        0, 
+        GL_DEPTH_COMPONENT, 
+        GL_FLOAT, 0);
+    
+    //tell gpu that we want to do depth comparisons for shadow filtering
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
+        GL_COMPARE_REF_TO_TEXTURE);
+
+    //set dpeth comparison mode to less than or equal
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC,
+        GL_LEQUAL);
+
+    //set nearest neighbor filtering for magnification
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    //set nearest neighbor for minification
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    //next, configure frame buffer
+    GLuint frameBuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
+    //set depth map that we generated to be a depth attachment
+    glFramebufferTexture(GL_FRAMEBUFFER,
+        GL_DEPTH_ATTACHMENT, depthMap, 0);
+
+    //just a depth map so no drawing to scene
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    //check if the buffer is actually ready before attempting to use
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER)
+        != GL_FRAMEBUFFER_COMPLETE) return false;
+
+    //below few lines is initialization, happens in main before entering loop
+    GLuint shadowProgram = glCreateProgram();
+    //uses a frag shader that ouputs just a constant color, doesnt matter what
+    //we need a frag shader but it doesn't actually do anything
+
+
+    //below is part tof render loop, called in OnDisplay
+
+    //render to the depth map
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
+    glViewport(0, 0, shadowWidth, shadowHeight);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glUseProgram(shadowProgram);
+    //then set the MVP for light camera (the MLP)
+    //bogus placeholder matrix
+    glm::mat4 matrixMLP = glm::mat4(1.0f);
+    glUniformMatrix4fv(
+        glGetUniformLocation(shadowProgram, "mvp"),
+        1, GL_FALSE, &matrixMLP[0][0]
+    );
+   // glDrawArrays(...);
+
+    //render the camera view
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);//zero could also be another buffer, whatever
+    glViewport(0, 0, width, height);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glUseProgram(program) // use whatever program to render
+   
+    //below we are sending THIRD matrix
+   //neither MVP NOR MLP
+    /*
+    glUniformMatrix4fv(
+        glGetUniformLocation(program, "matrixShadow"),
+        1, GL_FALSE, matrixShadow);
+    
+    */
+    //glDrawArrays(...);
+
+
+    //below is formula for transforming MLP to MSHADOW
+    /*
+        MSHADOW = T * S * MLP
+        S is uniform scale matrix (0.5, 0.5, 0.5)
+
+        //add just a tad of bias to z component to stop self-shadowing errors
+        T is uniform translatiton matrix (0.5, 0.5f, 0.5f - bias)
+     */
+
+    //When SAMPLING from depth map texture, use MShadow
+    //When RENDERING to depth map texture, use MLP
+
+    /*
+    
+        BELOW: RENDER with cyGL.h helper functions!
+
+        //initialization
+        cy::GLRenderDepth2D shadowMap;
+
+        shadowMap.Initialize(
+            true,  //use depth comparison texturer
+            with,
+            height
+        );
+
+        shadowMap.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
+
+        //onDisplay
+
+        shadowMap.Bind();
+        clClear(GL_DEPTH_BUFFER_BIT);
+        glDrawArrays(...);
+        shadowMap.UnBind();
+    */
+}
+
 //creates and binds a texture, given a specified filename and uniform variable
 //currenlty used for both diffuse and specularity
 void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLuint& texID, const GLchar* uniformName) {
