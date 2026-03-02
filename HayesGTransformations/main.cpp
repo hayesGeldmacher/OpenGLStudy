@@ -60,6 +60,14 @@
 
 */
 
+//the frame buffer object for the shadows
+unsigned int depthMapFBO;
+//the resolution for the shadows
+const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+//the texture for the shadows
+unsigned int depthMap;
+
+
 
 //should we render to a plane or not
 bool renderToTexture = true;
@@ -85,14 +93,18 @@ cy::TriMesh cubeMesh;
 //sphere mesh used instead of teapot for testing
 cy::TriMesh sphereMesh;
 
-//program info for the sphereMesh
-ProgramInfo sphereInfo;
 
-//program info for the teapot
+//program info for the teapot rendered into lightview to generate shadow textures
+ProgramInfo teapotInfoShadow;
+
+//program info for the teapot rendered with shadows
 ProgramInfo teapotInfo;
 
-//program info for the render plane
+//progrma info for plane rendered with shadows
 ProgramInfo planeInfo;
+
+//program info for the plane rendered into lightview to generate shadow textures
+ProgramInfo planeInfoShadow;
 
 //program info for the environment cube
 ProgramInfo cubeInfo;
@@ -125,8 +137,10 @@ float animateSpeed = 0.05f;
 //instance of world object transform class for the render plane
 WorldTransform planeObject;
 
+
 //instance of world object transform class, generates transformation matrix
 WorldTransform teapotObject("teapotReflection.obj");
+
 
 WorldTransform cubeObject("cube.obj");
 
@@ -299,8 +313,25 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
     }
 }
 
+glm::mat4 GetLightMatrix() {
+    //generate perpsective/ortho projection matrix
+    glm::mat4 projMat = projInfo.GetProjection();
+
+    glm::vec3 lightPos = lightInfo.lightPosition;
+
+    glm::mat4 lightView = glm::lookAt(lightPos,
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
+    glm::mat4 lightMat = projMat * lightView;
+    return lightMat;
+
+}
+
+
 //renders the teapot object from start to finish
-void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped) {
+void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped, bool useLight) {
     //use the desired shader program
     glUseProgram(programInfo.programID);
     glBindVertexArray(programInfo.vao);
@@ -311,10 +342,21 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     //sets the camera target to teapot
     camera.SetTarget(object.GetPosition());
 
-    SetUniformAttributesTransformations(programInfo, object, camera, flipped);
+    if (useLight) {
+        
+        glm::mat4 lightMat = GetLightMatrix();
+        GLint uniformLocation;
+        //send the world transform variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
+    }
+    else {
 
-    //set uniform lighting atttributes
-    SetUniformAttributesLighting(programInfo.programID, camera, object);
+        SetUniformAttributesTransformations(programInfo, object, camera, flipped);
+
+        //set uniform lighting atttributes
+        SetUniformAttributesLighting(programInfo.programID, camera, object);
+    }
 
     if (useReflections) {
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
@@ -327,6 +369,34 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
 
     }
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
+}
+
+void RenderPlaneObject(ProgramInfo &programInfo, bool useLight) {
+    glUseProgram(programInfo.programID);
+    glBindVertexArray(programInfo.vao);
+
+    GLuint uniformLocation;
+    planeObject.SetRotation(0, angleInRadians, 0);
+
+    if (useLight) {
+        glm::mat4 lightMat = GetLightMatrix();
+        GLint uniformLocation;
+        //send the world transform variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
+    }
+    else {
+
+        SetUniformAttributesTransformations(programInfo, planeObject, camera, false);
+
+        //set uniform lighting atttributes
+        SetUniformAttributesLighting(programInfo.programID, camera, planeObject);
+    }
+
+    //set uniform lighting atttributes
+    SetUniformAttributesLighting(programInfo.programID, camera, planeObject);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 //renders the environment cube map
@@ -354,10 +424,39 @@ void RenderEnvironment(bool flipped) {
 
 }
 
+
+
 //called when GLUT draws something to screen
 void OnDisplay() {
-        
-     
+
+
+
+    //overall process for shadow maps looks like this:
+
+    //1. first render to depth map
+    glViewport(0, 0, width, height);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    //configure shaders and matrices here
+    //do light transform stuff
+    RenderTeapotObject(teapotInfo, camera, teapotObject, false, true);
+    RenderPlaneObject(planeInfo, true);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    //next render the scene with shadow mapping with the depth map
+    glViewport(0, 0, width, height);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
+    RenderPlaneObject(planeInfoShadow, false);
+       
+    glutSwapBuffers();
+    return;
+
+
+
+
+
+
     
     
     renderBuffer.Bind();
@@ -367,31 +466,16 @@ void OnDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
 
-    if (renderSphere) {
-        glUseProgram(sphereInfo.programID);
-        glBindVertexArray(sphereInfo.vao);
-
-        //update object rotation
-        sphereObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-        //sets the camera target to teapot
-        camera.SetTarget(sphereObject.GetPosition());
-        SetUniformAttributesTransformations(sphereInfo, sphereObject, camera, false);
-        SetUniformAttributesLighting(sphereInfo.programID, camera, sphereObject);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-        glDrawArrays(GL_TRIANGLES, 0, sphereObject.facesNumber);
-    }
-    else {
 
         //render teapot once for render buffer reflections
 
-        RenderTeapotObject(teapotInfo, camera, teapotObject, true);
-        RenderEnvironment(true);
-    }
-
+     //   RenderTeapotObject(teapotInfo, camera, teapotObject, true);
+       // RenderEnvironment(true);
+    
 
     glBindVertexArray(0);
     renderBuffer.Unbind();
+
 
 
     // clear all relevant buffers
@@ -401,22 +485,14 @@ void OnDisplay() {
     renderBuffer.BindTexture(0);
 
     //render teapot again to actually display in scene
-    RenderTeapotObject(teapotInfo, camera, teapotObject, false);
+   // RenderTeapotObject(teapotInfo, camera, teapotObject, false);
   
-     glUseProgram(planeInfo.programID);
-     glBindVertexArray(planeInfo.vao);
-     
-     GLuint uniformLocation;
-     planeObject.SetRotation(0, angleInRadians, 0);
-     glm::vec3 viewPos = camera.GetPosition();
-     uniformLocation = glGetUniformLocation(planeInfo.programID, "viewPos");
-     glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
-     SetUniformAttributesTransformations(planeInfo,  planeObject, camera, false);
-     //set uniform lighting atttributes
-     SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
-     glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+    /*
+    
+    */
 
-     glDrawArrays(GL_TRIANGLES, 0, 6);
+     
+   // RenderPlaneObject();
 
     // RenderEnvironment(false);
     
@@ -427,6 +503,31 @@ void OnDisplay() {
 //called when we want to initialize a depth map for use 
 bool CreateShadowMap() {
 
+    glGenFramebuffers(1, &depthMapFBO);
+
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    //create the texture image as a depth component
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+        SHADOW_WIDTH,  SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+
+    //after generating the depth map, attach it to the fbo
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+    glDrawBuffer(GL_NONE);
+    glDrawBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+   
+    /*
+    
     shadowMap.Initialize(
         true, 
         width, 
@@ -434,6 +535,9 @@ bool CreateShadowMap() {
     );
 
     shadowMap.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
+    return true;
+    
+    */
     return true;
 }
 
@@ -1230,6 +1334,7 @@ int main(int argc, char** argv)
  //   CreateBuffers(cubeInfo.vbo, cubeObject, cubeMesh, false, false, false);
 
     //create array of texture face fileNames
+    /*
     std::vector<std::string> faceNames = {
         "cubemap_posx.png",
         "cubemap_negx.png",
@@ -1239,59 +1344,41 @@ int main(int argc, char** argv)
         "cubemap_negz.png",
     };
 
+    
+    */
     //create and bind 6 texture faces for the cubemap
   //  BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
-    //if render sphere for testing reflections
-    if (renderSphere) {
-        CompileShaders("reflection.vert", "reflection.frag", sphereInfo.vao, sphereInfo.programID);
-        CreateBuffers(sphereInfo.vbo, sphereObject, sphereMesh, true, false, false);
-        InitializeObject(sphereMesh, sphereObject);
-    }
-    else {
 
-        //for rendering teapot with brick textures
-        if (!useReflections) {
-            //compile shaders, create program, load mesh
-             CompileShaders("shadowTeapot.vert", "shadowTeapot.frag", teapotInfo.vao, teapotInfo.programID);
-            //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
-
-            //create attribute buffers for vertex position and normal data
-            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
-        }
-        //for rendering teapot with cubemap reflections
-        else{
-            //compile shaders, create program, load mesh
-            CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
-            //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
-
-            //create attribute buffers for vertex position and normal data
-            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
-        }
+       //compile teapot for shadow map
+       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
+       CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
         
-        //center teapot, set rot, pos, and scale
-        InitializeObject(teapotMesh, teapotObject);
-    }
+       //center teapot, set rot, pos, and scale
+       InitializeObject(teapotMesh, teapotObject);
 
-    //if we are rendering-to-texture, render plane and set up render buffer
-   if (renderToTexture) {
+       //compile teapot for actual rendering
+       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
+       CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
 
-        //compile shaders for render texture with reflections
-        CompileShaders("shadowTeapot.vert", "shadowTeapot.frag", planeInfo.vao, planeInfo.programID);
+       //compile plane for shadow map
+       CompileShaders("shadowMap.vert", "shadowMap.frag", planeInfo.vao, planeInfo.programID);
+       CreatePlaneBuffers(planeInfo.vbo, planeObject);
 
-        //create buffers for plane object which displays render texture
-        CreatePlaneBuffers(planeInfo.vbo, planeObject);
+       //compile plane for actual rendering
+       CompileShaders("shadowObject.vert", "shadowObject.frag", planeInfoShadow.vao, planeInfoShadow.programID);
+       CreatePlaneBuffers(planeInfoShadow.vbo, planeObject);
 
-        //intialize render texure, set filtering and bind
-        //RenderToTexture();
+       //intialize render texure, set filtering and bind
+       //RenderToTexture();
 
-        //set up shadow map!
-        CreateShadowMap();
+       //set up shadow map!
+       CreateShadowMap();
 
-        //set up scale + position for object, don't need rotation
-        planeObject.SetScale(5.0f);
-        planeObject.SetPosition(0.0, 0, 0.0f);
-   }
+       //set up scale + position for object, don't need rotation
+       planeObject.SetScale(5.0f);
+       planeObject.SetPosition(0.0, 0, 0.0f);
+       teapotObject.color = glm::vec3(0.5f, 0.2f, 1.0f);
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);

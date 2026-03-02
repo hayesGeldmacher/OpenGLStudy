@@ -15,5 +15,5 @@ void main(){
 	//for testing, disabled actual shadow map for raw color
 	//color *= textureProj(shadow, lightView_Position);
 
-	color = vec4(1.0f, .05f, .04f, 1.0f);
+	color = vec4(0.0f, 1.0f, 1.0f, 1.0f);
 }

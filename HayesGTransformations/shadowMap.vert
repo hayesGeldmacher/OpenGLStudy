@@ -2,22 +2,15 @@
 
 layout (location = 0) in vec3 pos;
 
+//matrix for object-world space
 uniform mat4 world;
-uniform mat4 view;
-uniform mat4 projection;
 
-//matrix for shadow sampling
-uniform mat4 matrixShadow;
-
-//output for looking up shadow texture
-out vec4 lightView_Position;
-
+//matrix for light space
+uniform mat4 lightMat;
 
 
 void main(){
 
-	gl_Position = projection * view * world * vec4(pos.x,pos.y,pos.z,1.0f);
-	//puts position in 0-1 range for texture lookups
-	lightView_Position = matrixShadow * vec4(pos, 1.0f);
+	gl_Position = lightMat * world * vec4(pos.x,pos.y,pos.z,1.0f);
 
 }
