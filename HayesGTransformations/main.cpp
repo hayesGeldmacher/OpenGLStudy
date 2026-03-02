@@ -68,7 +68,13 @@ bool renderToTexture = true;
 bool renderSphere = false;
 
 //should we use reflections or textures
-bool useReflections =true;
+bool useReflections = false;
+
+bool useShadows = true;
+
+
+//shadow map
+cy::GLRenderDepth2D shadowMap;
 
 //teapot mesh being loaded in
 cy::TriMesh teapotMesh;
@@ -108,7 +114,7 @@ static float angleInRadians = 0.0f;
 //lighting data
 glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
-float ambientLightIntensity = 0.1f;
+float ambientLightIntensity = 0.5f;
 static LightInfo lightInfo(lightColor, ambientColor, ambientLightIntensity);
 
 //animation time-tracking
@@ -316,8 +322,8 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     else {
 
         //bind both textures being used
-        glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
-        glBindTexture(GL_TEXTURE_2D, programInfo.texIDSpec);
+        //glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
+        //glBindTexture(GL_TEXTURE_2D, programInfo.texIDSpec);
 
     }
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
@@ -351,7 +357,10 @@ void RenderEnvironment(bool flipped) {
 //called when GLUT draws something to screen
 void OnDisplay() {
         
-     renderBuffer.Bind();
+     
+    
+    
+    renderBuffer.Bind();
     //create mipmaps each frame
      renderBuffer.BuildTextureMipmaps();
     glClearColor(0, 0, 0, 0.0f);
@@ -403,15 +412,32 @@ void OnDisplay() {
      uniformLocation = glGetUniformLocation(planeInfo.programID, "viewPos");
      glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
      SetUniformAttributesTransformations(planeInfo,  planeObject, camera, false);
+     //set uniform lighting atttributes
+     SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
      glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
 
      glDrawArrays(GL_TRIANGLES, 0, 6);
 
-     RenderEnvironment(false);
+    // RenderEnvironment(false);
     
     //swap buffers, signifies that we are done rendering this frame
     glutSwapBuffers();
 }
+
+//called when we want to initialize a depth map for use 
+bool CreateShadowMap() {
+
+    shadowMap.Initialize(
+        true, 
+        width, 
+        height
+    );
+
+    shadowMap.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
+    return true;
+}
+
+
 
 //loads and returns an object file using string for text file name
 cy::TriMesh LoadObjectFile(const char* fileName) {
@@ -455,8 +481,8 @@ bool CreateDepthTexture() {
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
 
-    int shadowWidth;
-    int shadowHeight;
+    int shadowWidth = 0;
+    int shadowHeight = 0;
 
     //initialize texture image for depth map
     glTexImage2D(GL_TEXTURE_2D, 
@@ -482,7 +508,7 @@ bool CreateDepthTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     //next, configure frame buffer
-    GLuint frameBuffer;
+    GLuint frameBuffer = 0;
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 
     //set depth map that we generated to be a depth attachment
@@ -1198,10 +1224,10 @@ int main(int argc, char** argv)
     glClearColor(0, 0, 0, 0);
 
     //compile shaders for the environment cubemap
-    CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
+  //  CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
 
     //create buffers for env cube
-    CreateBuffers(cubeInfo.vbo, cubeObject, cubeMesh, false, false, false);
+ //   CreateBuffers(cubeInfo.vbo, cubeObject, cubeMesh, false, false, false);
 
     //create array of texture face fileNames
     std::vector<std::string> faceNames = {
@@ -1214,7 +1240,7 @@ int main(int argc, char** argv)
     };
 
     //create and bind 6 texture faces for the cubemap
-    BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
+  //  BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
 
     //if render sphere for testing reflections
     if (renderSphere) {
@@ -1227,11 +1253,11 @@ int main(int argc, char** argv)
         //for rendering teapot with brick textures
         if (!useReflections) {
             //compile shaders, create program, load mesh
-             CompileShaders("shader.vert", "shader.frag", teapotInfo.vao, teapotInfo.programID);
+             CompileShaders("shadowTeapot.vert", "shadowTeapot.frag", teapotInfo.vao, teapotInfo.programID);
             //buffers must be created RIGHT AFTER the shader was compiled, lest it gets bound wrong!
 
             //create attribute buffers for vertex position and normal data
-            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, true);
+            CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
         }
         //for rendering teapot with cubemap reflections
         else{
@@ -1251,13 +1277,16 @@ int main(int argc, char** argv)
    if (renderToTexture) {
 
         //compile shaders for render texture with reflections
-        CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
+        CompileShaders("shadowTeapot.vert", "shadowTeapot.frag", planeInfo.vao, planeInfo.programID);
 
         //create buffers for plane object which displays render texture
         CreatePlaneBuffers(planeInfo.vbo, planeObject);
 
         //intialize render texure, set filtering and bind
-        RenderToTexture();
+        //RenderToTexture();
+
+        //set up shadow map!
+        CreateShadowMap();
 
         //set up scale + position for object, don't need rotation
         planeObject.SetScale(5.0f);
