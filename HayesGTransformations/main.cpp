@@ -202,6 +202,9 @@ struct persProj {
 //instance of projection info struct
 static persProj projInfo;
 
+static persProj lightProjection;
+
+
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
 
@@ -320,7 +323,11 @@ void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Cam
 
 glm::mat4 GetLightMatrix() {
     //generate perpsective/ortho projection matrix
-    glm::mat4 projMat = projInfo.GetProjection();
+  
+   // glm::mat4 projMat = projInfo.GetProjection();
+    lightProjection.usePerspective = false;
+    glm::mat4 projMat = lightProjection.GetProjection();
+
 
     glm::vec3 lightPos = lightInfo.lightPosition;
 
@@ -354,6 +361,12 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
         //send the world transform variable
         uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
         glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
+
+        glm::mat4 worldMatrix = object.GetMat();
+        //send the world transform variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "world");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
+
     }
     else {
 
@@ -376,7 +389,7 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
-void RenderPlaneObject(ProgramInfo &programInfo, bool useLight) {
+void RenderPlaneObject(ProgramInfo &programInfo, WorldTransform &object, bool useLight) {
     glUseProgram(programInfo.programID);
     glBindVertexArray(programInfo.vao);
 
@@ -389,17 +402,20 @@ void RenderPlaneObject(ProgramInfo &programInfo, bool useLight) {
         //send the world transform variable
         uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
         glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
+
+        glm::mat4 worldMatrix = object.GetMat();
+        //send the world transform variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "world");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
     }
     else {
 
-        SetUniformAttributesTransformations(programInfo, planeObject, camera, false);
+        SetUniformAttributesTransformations(programInfo, object, camera, false);
 
         //set uniform lighting atttributes
-        SetUniformAttributesLighting(programInfo.programID, camera, planeObject);
+        SetUniformAttributesLighting(programInfo.programID, camera, object);
     }
 
-    //set uniform lighting atttributes
-    SetUniformAttributesLighting(programInfo.programID, camera, planeObject);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -439,20 +455,32 @@ void OnDisplay() {
     //overall process for shadow maps looks like this:
 
     //1. first render to depth map
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     //configure shaders and matrices here
     //do light transform stuff
     RenderTeapotObject(teapotInfo, camera, teapotObject, false, true);
-    RenderPlaneObject(planeInfo, true);
+    RenderPlaneObject(planeInfo, planeObject, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    
     //next render the scene with shadow mapping with the depth map
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
-    RenderPlaneObject(planeInfoShadow, false);
+    /*
+    */
+   RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
+   RenderPlaneObject(planeInfoShadow, planeObject, false);
+
+    //finally, render the new depthTestPlane to ensure it works!
+    glUseProgram(depthDisplayInfo.programID);
+    glBindVertexArray(depthDisplayInfo.vao);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
        
     glutSwapBuffers();
     return;
@@ -578,7 +606,7 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
 
     //set object starting position, rotation, scale
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetPosition(0.0, 8.0f, 0.0f);
+    object.SetPosition(0.0, 8.0f, -30.0f);
     object.SetScale(1.0f);
 }
 
@@ -1375,8 +1403,8 @@ int main(int argc, char** argv)
        CreatePlaneBuffers(planeInfoShadow.vbo, planeObject);
 
        //compile testing display depth plane
-      // CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-       //CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
+        CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+        CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
 
        //intialize render texure, set filtering and bind
        //RenderToTexture();
@@ -1385,11 +1413,14 @@ int main(int argc, char** argv)
        CreateShadowMap();
 
        //set up scale + position for object, don't need rotation
-       planeObject.SetScale(5.0f);
-       planeObject.SetPosition(0.0, 0, 0.0f);
+       planeObject.SetScale(3.0f);
+       planeObject.SetPosition(0.0, -20, -8.0f);
+       
 
-       depthDisplayObject.SetScale(5.0f);
-       depthDisplayObject.SetPosition(0.0f, 5.0f, 0.0f);
+
+       depthDisplayObject.SetScale(3.0f);
+       depthDisplayObject.SetPosition(0.0f, 5.0f, 3.0f);
+       depthDisplayObject.Rotate(90.0f, 0.0f, 0.0f);
 
 
     //set the teapot camera to active by default

@@ -102,9 +102,9 @@ public:
 
 	//zoom-fields variables
 	float zoomSpeed = 0.4f;
-	float currentZoom = 30.0f;
-	float maxZoom = 120.0f;
-	float minZoom = 5.0f;
+	float currentZoom = 100.0f;
+	float maxZoom = 500.0f;
+	float minZoom = 1.0f;
 
 
 
