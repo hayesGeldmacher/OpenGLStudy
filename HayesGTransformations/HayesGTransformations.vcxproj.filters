@@ -54,6 +54,8 @@
     <None Include="shadowMap.vert">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="depthDisplay.vert" />
+    <None Include="depthDisplay.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">

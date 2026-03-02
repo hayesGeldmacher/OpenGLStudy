@@ -109,6 +109,8 @@ ProgramInfo planeInfoShadow;
 //program info for the environment cube
 ProgramInfo cubeInfo;
 
+ProgramInfo depthDisplayInfo;
+
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
 
@@ -136,6 +138,9 @@ float animateSpeed = 0.05f;
 
 //instance of world object transform class for the render plane
 WorldTransform planeObject;
+
+//test plane for checking if the depth map was displayed correctly
+WorldTransform depthDisplayObject;
 
 
 //instance of world object transform class, generates transformation matrix
@@ -1033,8 +1038,8 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 3));
 
     //interpret tex coords data
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
 }
 
 //compiles shaders with given program and file information
@@ -1369,6 +1374,10 @@ int main(int argc, char** argv)
        CompileShaders("shadowObject.vert", "shadowObject.frag", planeInfoShadow.vao, planeInfoShadow.programID);
        CreatePlaneBuffers(planeInfoShadow.vbo, planeObject);
 
+       //compile testing display depth plane
+      // CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+       //CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
+
        //intialize render texure, set filtering and bind
        //RenderToTexture();
 
@@ -1378,7 +1387,10 @@ int main(int argc, char** argv)
        //set up scale + position for object, don't need rotation
        planeObject.SetScale(5.0f);
        planeObject.SetPosition(0.0, 0, 0.0f);
-       teapotObject.color = glm::vec3(0.5f, 0.2f, 1.0f);
+
+       depthDisplayObject.SetScale(5.0f);
+       depthDisplayObject.SetPosition(0.0f, 5.0f, 0.0f);
+
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);

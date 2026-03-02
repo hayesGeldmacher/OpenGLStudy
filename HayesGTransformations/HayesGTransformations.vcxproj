@@ -136,6 +136,8 @@
   <ItemGroup>
     <None Include="cubeMap.frag" />
     <None Include="cubeMap.vert" />
+    <None Include="depthDisplay.frag" />
+    <None Include="depthDisplay.vert" />
     <None Include="packages.config" />
     <None Include="reflection.frag" />
     <None Include="reflection.vert" />
