@@ -476,18 +476,16 @@ void OnDisplay() {
     //overall process for shadow maps looks like this:
 
     //1. first render to depth map
+    glCullFace(GL_FRONT);
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
-    //configure shaders and matrices here
-    //do light transform stuff
+
     RenderTeapotObject(teapotInfo, camera, teapotObject, false, true);
-
-   RenderTeapotObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
-   RenderPlaneObject(planeInfo, planeObject, true);
-   RenderTeapotObject(quadInfo, camera, quadObject, false, true);
+    RenderTeapotObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
+    RenderTeapotObject(quadInfo, camera, quadObject, false, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+    glCullFace(GL_BACK);
     
     //next render the scene with shadow mapping with the depth map
     glViewport(0, 0, width, height);
@@ -500,14 +498,15 @@ void OnDisplay() {
     camera.SetTarget(teapotObject.GetPosition());
     RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
     RenderTeapotObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-    RenderPlaneObject(planeInfoShadow, planeObject, false);
     RenderTeapotObject(quadInfoShadow, camera, quadObject, false, false);
+
 
     //finally, render the new depthTestPlane to ensure it works!
    
     glUseProgram(depthDisplayInfo.programID);
     glBindVertexArray(depthDisplayInfo.vao);
 
+   /*
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
@@ -523,57 +522,9 @@ void OnDisplay() {
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
        
-   /*
    */
     glutSwapBuffers();
-    return;
 
-
-
-
-
-
-    
-    
-    renderBuffer.Bind();
-    //create mipmaps each frame
-     renderBuffer.BuildTextureMipmaps();
-    glClearColor(0, 0, 0, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-
-
-        //render teapot once for render buffer reflections
-
-     //   RenderTeapotObject(teapotInfo, camera, teapotObject, true);
-       // RenderEnvironment(true);
-    
-
-    glBindVertexArray(0);
-    renderBuffer.Unbind();
-
-
-
-    // clear all relevant buffers
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    renderBuffer.BindTexture(0);
-
-    //render teapot again to actually display in scene
-   // RenderTeapotObject(teapotInfo, camera, teapotObject, false);
-  
-    /*
-    
-    */
-
-     
-   // RenderPlaneObject();
-
-    // RenderEnvironment(false);
-    
-    //swap buffers, signifies that we are done rendering this frame
-    glutSwapBuffers();
 }
 
 //called when we want to initialize a depth map for use 
@@ -589,8 +540,10 @@ bool CreateShadowMap() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
 
     //after generating the depth map, attach it to the fbo
@@ -1457,8 +1410,8 @@ int main(int argc, char** argv)
        CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
 
 
-       quadObject.SetScale(3.0f);
-       quadObject.SetPosition(0.0f, -6.0f, 5.0f);
+       quadObject.SetScale(50.0f);
+       quadObject.SetPosition(0.0f, -18.0f, 5.0f);
 
        //compile plane for shadow map
        CompileShaders("shadowMap.vert", "shadowMap.frag", planeInfo.vao, planeInfo.programID);
