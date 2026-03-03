@@ -93,6 +93,8 @@ cy::TriMesh cubeMesh;
 //sphere mesh used instead of teapot for testing
 cy::TriMesh sphereMesh;
 
+cy::TriMesh quadMesh;
+
 
 //program info for the teapot rendered into lightview to generate shadow textures
 ProgramInfo teapotInfoShadow;
@@ -111,8 +113,15 @@ ProgramInfo cubeInfo;
 
 ProgramInfo depthDisplayInfo;
 
+ProgramInfo teapotSecondInfo;
+
+ProgramInfo teapotSecondShadow;
+
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
+
+ProgramInfo quadInfo;
+ProgramInfo quadInfoShadow;
 
 //number of vertices in mesh
 float verticesNumber = 0.0f;
@@ -146,10 +155,14 @@ WorldTransform depthDisplayObject;
 //instance of world object transform class, generates transformation matrix
 WorldTransform teapotObject("teapotReflection.obj");
 
+WorldTransform teapotObjectSecond("teapotReflection.obj");
+
 
 WorldTransform cubeObject("cube.obj");
 
 WorldTransform sphereObject("sphere.obj");
+
+WorldTransform quadObject("PlaneMesh.obj");
 
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
@@ -264,7 +277,6 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
     //generate perpsective/ortho projection matrix
     glm::mat4 projMat = projInfo.GetProjection();
 
-    GLint uniformLocation;
 
     //flip the camera on the Y axis for planar reflections
     if (flipped) {
@@ -272,6 +284,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
         camViewMat = camViewMat * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, -1.0f, 1.0f));
     }
 
+    GLint uniformLocation;
     //send the world transform variable
     uniformLocation = glGetUniformLocation(programInfo.programID, "world");
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
@@ -325,7 +338,7 @@ glm::mat4 GetLightMatrix() {
     //generate perpsective/ortho projection matrix
   
    // glm::mat4 projMat = projInfo.GetProjection();
-    lightProjection.usePerspective = false;
+    lightProjection.usePerspective = true;
     glm::mat4 projMat = lightProjection.GetProjection();
 
 
@@ -344,6 +357,10 @@ glm::mat4 GetLightMatrix() {
 
 //renders the teapot object from start to finish
 void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped, bool useLight) {
+    
+
+
+    
     //use the desired shader program
     glUseProgram(programInfo.programID);
     glBindVertexArray(programInfo.vao);
@@ -351,8 +368,7 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     //update object rotation
     object.SetRotation(angleInRadians, angleInRadians, angleInRadians);
 
-    //sets the camera target to teapot
-    camera.SetTarget(object.GetPosition());
+  
 
     if (useLight) {
         
@@ -370,6 +386,11 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
     }
     else {
 
+        glm::mat4 lightMat = GetLightMatrix();
+        GLint uniformLocation;
+        //send the world transform variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
         SetUniformAttributesTransformations(programInfo, object, camera, flipped);
 
         //set uniform lighting atttributes
@@ -457,11 +478,14 @@ void OnDisplay() {
     //1. first render to depth map
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    glClear(GL_DEPTH_BUFFER_BIT);
     //configure shaders and matrices here
     //do light transform stuff
     RenderTeapotObject(teapotInfo, camera, teapotObject, false, true);
-    RenderPlaneObject(planeInfo, planeObject, true);
+
+   RenderTeapotObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
+   RenderPlaneObject(planeInfo, planeObject, true);
+   RenderTeapotObject(quadInfo, camera, quadObject, false, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     
@@ -470,18 +494,37 @@ void OnDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     /*
     */
-   RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
-   RenderPlaneObject(planeInfoShadow, planeObject, false);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    //sets the camera target to teapot
+    camera.SetTarget(teapotObject.GetPosition());
+    RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
+    RenderTeapotObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
+    RenderPlaneObject(planeInfoShadow, planeObject, false);
+    RenderTeapotObject(quadInfoShadow, camera, quadObject, false, false);
 
     //finally, render the new depthTestPlane to ensure it works!
+   
     glUseProgram(depthDisplayInfo.programID);
     glBindVertexArray(depthDisplayInfo.vao);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
+    //set uniform values to linearize 
+    GLint uniformLocation;
+    //update uniform specular shininess exponent in the frag shader
+    uniformLocation = glGetUniformLocation(depthDisplayInfo.programID, "near_plane");
+    glUniform1f(uniformLocation, projInfo.nearZ);
+
+    uniformLocation = glGetUniformLocation(depthDisplayInfo.programID, "far_plane");
+    glUniform1f(uniformLocation, projInfo.farZ);
+
+
     glDrawArrays(GL_TRIANGLES, 0, 6);
        
+   /*
+   */
     glutSwapBuffers();
     return;
 
@@ -606,7 +649,7 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
 
     //set object starting position, rotation, scale
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetPosition(0.0, 8.0f, -30.0f);
+    object.SetPosition(0.0, 8.0f, 0.0f);
     object.SetScale(1.0f);
 }
 
@@ -1390,9 +1433,32 @@ int main(int argc, char** argv)
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, teapotObject);
 
+
+
        //compile teapot for actual rendering
        CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
        CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
+
+       //compile teapot for actual rendering
+       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
+       CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+
+       //compile teapot for actual rendering
+       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
+       CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+
+       teapotObjectSecond.SetScale(1.0f);
+       teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
+
+       CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
+       CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false);
+
+       CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
+       CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
+
+
+       quadObject.SetScale(3.0f);
+       quadObject.SetPosition(0.0f, -6.0f, 5.0f);
 
        //compile plane for shadow map
        CompileShaders("shadowMap.vert", "shadowMap.frag", planeInfo.vao, planeInfo.programID);
@@ -1402,9 +1468,10 @@ int main(int argc, char** argv)
        CompileShaders("shadowObject.vert", "shadowObject.frag", planeInfoShadow.vao, planeInfoShadow.programID);
        CreatePlaneBuffers(planeInfoShadow.vbo, planeObject);
 
+
        //compile testing display depth plane
-        CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-        CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
+       CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+       CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
 
        //intialize render texure, set filtering and bind
        //RenderToTexture();
@@ -1413,14 +1480,14 @@ int main(int argc, char** argv)
        CreateShadowMap();
 
        //set up scale + position for object, don't need rotation
-       planeObject.SetScale(3.0f);
-       planeObject.SetPosition(0.0, -20, -8.0f);
+       planeObject.SetScale(10.0f);
+       planeObject.SetPosition(0.0, -20, 0.0f);
        
 
 
        depthDisplayObject.SetScale(3.0f);
-       depthDisplayObject.SetPosition(0.0f, 5.0f, 3.0f);
-       depthDisplayObject.Rotate(90.0f, 0.0f, 0.0f);
+       depthDisplayObject.SetPosition(0.0f, 8.0f, 10.0f);
+       depthDisplayObject.Rotate(-90.0f, 0.0f, 0.0f);
 
 
     //set the teapot camera to active by default
