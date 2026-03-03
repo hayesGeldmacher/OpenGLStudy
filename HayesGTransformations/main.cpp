@@ -537,6 +537,16 @@ bool CreateShadowMap() {
     //create the texture image as a depth component
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
         SHADOW_WIDTH,  SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D,
+        GL_TEXTURE_COMPARE_MODE,
+        GL_COMPARE_REF_TO_TEXTURE);
+
+    glTexParameteri(GL_TEXTURE_2D,
+        GL_TEXTURE_COMPARE_FUNC,
+        GL_LEQUAL);
+
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -551,6 +561,9 @@ bool CreateShadowMap() {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
     glDrawBuffer(GL_NONE);
     glDrawBuffer(GL_NONE);
+
+    glGenerateMipmap(GL_TEXTURE_2D);
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
