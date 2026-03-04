@@ -56,6 +56,10 @@
     </None>
     <None Include="depthDisplay.vert" />
     <None Include="depthDisplay.frag" />
+    <None Include="shadowedPlane.frag" />
+    <None Include="shadowedPlane.vert" />
+    <None Include="lightModel.frag" />
+    <None Include="lightModel.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">
@@ -88,5 +92,8 @@
     <ClInclude Include="ImageLoader.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="shadowedPlane.txt" />
   </ItemGroup>
 </Project>

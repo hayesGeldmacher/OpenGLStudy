@@ -19,20 +19,11 @@ uniform mat4 lightMat;
 //output for looking up shadow texture
 out vec4 fragPosLightSpace;
 
-
-//this is the actual texture data that color is being sampled from
-uniform sampler2D tex;
-
-
 void main(){
 
-	
 	fragPos = vec3(world * vec4(pos, 1.0f));
 	vNormal = transpose(inverse(mat3(world))) * normal;
 	vTex = texCord;
 	fragPosLightSpace = lightMat * vec4(fragPos, 1.0f);
 	gl_Position = projection * view * vec4(fragPos, 1.0f);
-
-	
-
 }

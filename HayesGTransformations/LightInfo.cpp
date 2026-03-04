@@ -153,10 +153,6 @@ void LightInfo::OnKeyBoard(unsigned char key){
 }
 
 void LightInfo::UpdateRotation() {
-	//start with identity matrix
-	//glm::mat  = glm::mat4(1.0f);
-
-
 
 	lightDirection.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
 	lightDirection.y = sin(glm::radians(pitch));
@@ -171,7 +167,6 @@ void LightInfo::UpdateRotation() {
 
 
 	lightPosition = lightTarget - glm::normalize(lightDirection) * currentZoom;
-//	view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
 }
 
 

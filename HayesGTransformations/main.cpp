@@ -28,8 +28,8 @@
 #include "ProgramInfo.h"
 #include "ColorInfo.h"
 #include "ImageLoader.h"
-//Hayes Geldmacher - 2/18  /26
-//CS 6610 - Project 4: redux
+//Hayes Geldmacher - 3/3/26
+//CS 6610 - Project 7: shadow mapping
 
 //Instructions/controls:
 /*
@@ -67,34 +67,17 @@ const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 //the texture for the shadows
 unsigned int depthMap;
 
-
-
-//should we render to a plane or not
-bool renderToTexture = true;
-
-//render either a sphere or teapot
-bool renderSphere = false;
-
-//should we use reflections or textures
-bool useReflections = false;
-
-bool useShadows = true;
-
-
-//shadow map
-cy::GLRenderDepth2D shadowMap;
-
 //teapot mesh being loaded in
 cy::TriMesh teapotMesh;
 
-//cube mesh used for background
-cy::TriMesh cubeMesh;
-
-//sphere mesh used instead of teapot for testing
-cy::TriMesh sphereMesh;
-
+//mesh used to load plane
 cy::TriMesh quadMesh;
 
+//mesh used to load light model
+cy::TriMesh lightMesh;
+
+//program  info for the model displaying the light
+ProgramInfo lightModelInfo;
 
 //program info for the teapot rendered into lightview to generate shadow textures
 ProgramInfo teapotInfoShadow;
@@ -108,13 +91,13 @@ ProgramInfo planeInfo;
 //program info for the plane rendered into lightview to generate shadow textures
 ProgramInfo planeInfoShadow;
 
-//program info for the environment cube
-ProgramInfo cubeInfo;
-
+//program info for testing the depth display on a plane
 ProgramInfo depthDisplayInfo;
 
+//program info for escond teapot 
 ProgramInfo teapotSecondInfo;
 
+//program info for second teapot second pass using shadow map
 ProgramInfo teapotSecondShadow;
 
 //the render buffer used for render-to-texture
@@ -122,10 +105,6 @@ cy::GLRenderTexture2D renderBuffer;
 
 ProgramInfo quadInfo;
 ProgramInfo quadInfoShadow;
-
-//number of vertices in mesh
-float verticesNumber = 0.0f;
-
 
 //screen width and height
 const static int width = 800;
@@ -157,13 +136,9 @@ WorldTransform teapotObject("teapotReflection.obj");
 
 WorldTransform teapotObjectSecond("teapotReflection.obj");
 
-
-WorldTransform cubeObject("cube.obj");
-
-WorldTransform sphereObject("sphere.obj");
-
 WorldTransform quadObject("PlaneMesh.obj");
 
+WorldTransform cubeObject("cube.obj");
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
@@ -298,47 +273,10 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransfor
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
-//Sets uniform shader variables for the environment cubemap
-void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera, bool flipped) {
-    
-    
-    //generate view matrix from camera
-    //remove translation from the env cube matrix, so it only corresponds to rotation
-    glm::mat4 camViewMat = glm::mat4(glm::mat3(camera.GetMatrix()));
-
-    //generate perpsective/ortho projection matrix
-    glm::mat4 projMat = projInfo.GetProjection();
-
-    glm::mat4 worldMat = cubeObject.GetMat();
-
-    GLint uniformLocation;
-
-    //send the camera view variable
-    uniformLocation = glGetUniformLocation(programInfo.programID, "view");
-    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
-
-    //send the projection variable
-    uniformLocation = glGetUniformLocation(programInfo.programID, "projection");
-    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
-
-    //send the camera view variable
-    uniformLocation = glGetUniformLocation(programInfo.programID, "world");
-    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMat[0][0]);
-
-    uniformLocation = glGetUniformLocation(programInfo.programID, "flipped");
-    if (flipped) {
-        glUniform1i(uniformLocation, 1);
-    }
-    else {
-        glUniform1i(uniformLocation, 0);
-    }
-}
-
+    //generate perpsective projection matrix for object-to-light transformation
 glm::mat4 GetLightMatrix() {
-    //generate perpsective/ortho projection matrix
   
-   // glm::mat4 projMat = projInfo.GetProjection();
-    lightProjection.usePerspective = true;
+
     glm::mat4 projMat = lightProjection.GetProjection();
 
 
@@ -354,24 +292,14 @@ glm::mat4 GetLightMatrix() {
 
 }
 
-
-//renders the teapot object from start to finish
-void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool flipped, bool useLight) {
-    
-
-
+//renders mesh objects from start to finish
+void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool useTextures, bool useLight) {
     
     //use the desired shader program
     glUseProgram(programInfo.programID);
     glBindVertexArray(programInfo.vao);
 
-    //update object rotation
-    object.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-
-  
-
-    if (useLight) {
-        
+    //get the object-to-light transform matrix
         glm::mat4 lightMat = GetLightMatrix();
         GLint uniformLocation;
         //send the world transform variable
@@ -382,98 +310,24 @@ void RenderTeapotObject(ProgramInfo &programInfo, Camera &camera, WorldTransform
         //send the world transform variable
         uniformLocation = glGetUniformLocation(programInfo.programID, "world");
         glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
+ 
+        //if not just for depth map, assign general uniform attributes
+    if(!useLight){
 
-    }
-    else {
-
-        glm::mat4 lightMat = GetLightMatrix();
-        GLint uniformLocation;
-        //send the world transform variable
-        uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
-        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
-        SetUniformAttributesTransformations(programInfo, object, camera, flipped);
-
+        SetUniformAttributesTransformations(programInfo, object, camera, false);
         //set uniform lighting atttributes
         SetUniformAttributesLighting(programInfo.programID, camera, object);
     }
 
-    if (useReflections) {
-        glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
+    if (useTextures) {
+        glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
     }
-    else {
 
-        //bind both textures being used
-        //glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
-        //glBindTexture(GL_TEXTURE_2D, programInfo.texIDSpec);
-
-    }
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
-void RenderPlaneObject(ProgramInfo &programInfo, WorldTransform &object, bool useLight) {
-    glUseProgram(programInfo.programID);
-    glBindVertexArray(programInfo.vao);
-
-    GLuint uniformLocation;
-    planeObject.SetRotation(0, angleInRadians, 0);
-
-    if (useLight) {
-        glm::mat4 lightMat = GetLightMatrix();
-        GLint uniformLocation;
-        //send the world transform variable
-        uniformLocation = glGetUniformLocation(programInfo.programID, "lightMat");
-        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &lightMat[0][0]);
-
-        glm::mat4 worldMatrix = object.GetMat();
-        //send the world transform variable
-        uniformLocation = glGetUniformLocation(programInfo.programID, "world");
-        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
-    }
-    else {
-
-        SetUniformAttributesTransformations(programInfo, object, camera, false);
-
-        //set uniform lighting atttributes
-        SetUniformAttributesLighting(programInfo.programID, camera, object);
-    }
-
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
-//renders the environment cube map
-void RenderEnvironment(bool flipped) {
-   
-    //disable depth mask so we can render just environment
-    glDepthMask(GL_FALSE);
-    glDepthFunc(GL_LEQUAL);
-
-    //render cube
-    glUseProgram(cubeInfo.programID);
-    glBindVertexArray(cubeInfo.vao);
-
-    //set uniform shader variables
-    SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera, true);
-    SetUniformEnvironment(cubeInfo, cubeObject, camera, flipped);
-
-    //bind cube map and draw the cube vertices
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeInfo.texIDDiffuse);
-    glDrawArrays(GL_TRIANGLES, 0, cubeObject.facesNumber);
-
-    //re-enable depth mask when we're done
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE);
-
-}
-
-
-
 //called when GLUT draws something to screen
 void OnDisplay() {
-
-
-
-    //overall process for shadow maps looks like this:
 
     //1. first render to depth map
     glCullFace(GL_FRONT);
@@ -481,48 +335,32 @@ void OnDisplay() {
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    RenderTeapotObject(teapotInfo, camera, teapotObject, false, true);
-    RenderTeapotObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
-    RenderTeapotObject(quadInfo, camera, quadObject, false, true);
+    //render both teapots and the plane to the depth buffer
+        //update object rotation
+    teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+    RenderMeshObject(teapotInfo, camera, teapotObject, false, true);
+    RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
+    RenderMeshObject(quadInfo, camera, quadObject, false, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glCullFace(GL_BACK);
     
-    //next render the scene with shadow mapping with the depth map
+    //next render the scene like usual, using depth map as texture
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    /*
-    */
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     //sets the camera target to teapot
     camera.SetTarget(teapotObject.GetPosition());
-    RenderTeapotObject(teapotInfoShadow, camera, teapotObject, false, false);
-    RenderTeapotObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-    RenderTeapotObject(quadInfoShadow, camera, quadObject, false, false);
+    RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
+    RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
+    RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
 
+    //render the light model object
+    glm::vec3 lightPos = lightInfo.lightPosition;
+    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
 
-    //finally, render the new depthTestPlane to ensure it works!
-   
-    glUseProgram(depthDisplayInfo.programID);
-    glBindVertexArray(depthDisplayInfo.vao);
-
-   /*
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
-    //set uniform values to linearize 
-    GLint uniformLocation;
-    //update uniform specular shininess exponent in the frag shader
-    uniformLocation = glGetUniformLocation(depthDisplayInfo.programID, "near_plane");
-    glUniform1f(uniformLocation, projInfo.nearZ);
-
-    uniformLocation = glGetUniformLocation(depthDisplayInfo.programID, "far_plane");
-    glUniform1f(uniformLocation, projInfo.farZ);
-
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-       
-   */
+    //swap buffers, end loop
     glutSwapBuffers();
 
 }
@@ -566,24 +404,8 @@ bool CreateShadowMap() {
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-
-   
-    /*
-    
-    shadowMap.Initialize(
-        true, 
-        width, 
-        height
-    );
-
-    shadowMap.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
-    return true;
-    
-    */
     return true;
 }
-
-
 
 //loads and returns an object file using string for text file name
 cy::TriMesh LoadObjectFile(const char* fileName) {
@@ -617,131 +439,6 @@ void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
     object.SetPosition(0.0, 8.0f, 0.0f);
     object.SetScale(1.0f);
-}
-
-//function for creating depth texture, following along with Cem's lecture
-bool CreateDepthTexture() {
-
-    //create and bind new texture
-    GLuint depthMap;
-    glGenTextures(1, &depthMap);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-
-    int shadowWidth = 0;
-    int shadowHeight = 0;
-
-    //initialize texture image for depth map
-    glTexImage2D(GL_TEXTURE_2D, 
-        0, 
-        GL_DEPTH_COMPONENT,   //specifying that we are storing depth component, not rgba
-        shadowWidth, shadowHeight, 
-        0, 
-        GL_DEPTH_COMPONENT, 
-        GL_FLOAT, 0);
-    
-    //tell gpu that we want to do depth comparisons for shadow filtering
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
-        GL_COMPARE_REF_TO_TEXTURE);
-
-    //set dpeth comparison mode to less than or equal
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC,
-        GL_LEQUAL);
-
-    //set nearest neighbor filtering for magnification
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    //set nearest neighbor for minification
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-    //next, configure frame buffer
-    GLuint frameBuffer = 0;
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-
-    //set depth map that we generated to be a depth attachment
-    glFramebufferTexture(GL_FRAMEBUFFER,
-        GL_DEPTH_ATTACHMENT, depthMap, 0);
-
-    //just a depth map so no drawing to scene
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
-
-    //check if the buffer is actually ready before attempting to use
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER)
-        != GL_FRAMEBUFFER_COMPLETE) return false;
-
-    //below few lines is initialization, happens in main before entering loop
-    GLuint shadowProgram = glCreateProgram();
-    //uses a frag shader that ouputs just a constant color, doesnt matter what
-    //we need a frag shader but it doesn't actually do anything
-
-
-    //below is part tof render loop, called in OnDisplay
-
-    //render to the depth map
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
-    glViewport(0, 0, shadowWidth, shadowHeight);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glUseProgram(shadowProgram);
-    //then set the MVP for light camera (the MLP)
-    //bogus placeholder matrix
-    glm::mat4 matrixMLP = glm::mat4(1.0f);
-    glUniformMatrix4fv(
-        glGetUniformLocation(shadowProgram, "mvp"),
-        1, GL_FALSE, &matrixMLP[0][0]
-    );
-   // glDrawArrays(...);
-
-    //render the camera view
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);//zero could also be another buffer, whatever
-    glViewport(0, 0, width, height);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //glUseProgram(program) // use whatever program to render
-   
-    //below we are sending THIRD matrix
-   //neither MVP NOR MLP
-    /*
-    glUniformMatrix4fv(
-        glGetUniformLocation(program, "matrixShadow"),
-        1, GL_FALSE, matrixShadow);
-    
-    */
-    //glDrawArrays(...);
-
-
-    //below is formula for transforming MLP to MSHADOW
-    /*
-        MSHADOW = T * S * MLP
-        S is uniform scale matrix (0.5, 0.5, 0.5)
-
-        //add just a tad of bias to z component to stop self-shadowing errors
-        T is uniform translatiton matrix (0.5, 0.5f, 0.5f - bias)
-     */
-
-    //When SAMPLING from depth map texture, use MShadow
-    //When RENDERING to depth map texture, use MLP
-
-    /*
-    
-        BELOW: RENDER with cyGL.h helper functions!
-
-        //initialization
-        cy::GLRenderDepth2D shadowMap;
-
-        shadowMap.Initialize(
-            true,  //use depth comparison texturer
-            with,
-            height
-        );
-
-        shadowMap.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
-
-        //onDisplay
-
-        shadowMap.Bind();
-        clClear(GL_DEPTH_BUFFER_BIT);
-        glDrawArrays(...);
-        shadowMap.UnBind();
-    */
 }
 
 //creates and binds a texture, given a specified filename and uniform variable
@@ -861,7 +558,7 @@ bool RenderToTexture() {
 }
 
 //generates textures for given object
-void GenerateTextures(cy::TriMesh &mesh) {
+void GenerateTextures(cy::TriMesh &mesh, bool spec) {
 
     //load imageData with the pixel image data we get from the file
     int matNum = mesh.NM();
@@ -873,29 +570,27 @@ void GenerateTextures(cy::TriMesh &mesh) {
     for (int i = 0; i < matNum; i++) {
         const cy::TriMesh::Mtl& mat = mesh.M(0);
         diffuseTextureData = mat.map_Kd;
-        specTextureData = mat.map_Ks;
+        if(spec){
+            specTextureData = mat.map_Ks;
+        }
     }
 
     const std::string diffuseFileName(diffuseTextureData.data);
-    //const char* diffuseFileName = diffuseTextureData.data;
-    const std::string specFileName(specTextureData.data);
     std::cout << "DIFFUSE FILE NAME: " << diffuseFileName << std::endl;
-    std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
-
-    //create and bind texture diffuse image
-    //lets test with the other files to see if they work out the box
-    //BindTextures(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
-    //BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex", false);
-
     //test with PNG to see if this works!
     BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
+    
 
-    //do the same thing now for the specular texture
-    BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
+    if (spec) {
+        const std::string specFileName(specTextureData.data);
+        std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
+        //do the same thing now for the specular texture
+        BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
+    }
 
 }
 
-//cube mapping for next week's project!
+//environment cube mapping
 void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
 
     glGenTextures(1, &texID);
@@ -952,36 +647,6 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
         GL_TEXTURE_MAG_FILTER,
         GL_LINEAR
     );
-
-    //global flag, can be enabled
-    //allows bilinear filtering between image seams
-    //but a bit more expensive!
-    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
-    //finally, bind cube map texture
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, texID);
-
-
-    //below will go in main render loop, just writing here for now
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    //draw scene objectts
-   //...
-
-    //background is drawn second so that we don't waste
-    //GPU memory by rendering pixels twice
-    //such as background pixels that are later covered
-    //by object pixels
-
-    //we should use 0.9 or a similarly high number (but less than 1!)
-    //as the z place to render background
-    glDepthMask(GL_FALSE);
-    
-    //draw background
-    //...
-
-    glDepthMask(GL_TRUE);
 }
 
 //creates buffer for vertex pos and normal info, sets related attributes
@@ -1034,7 +699,7 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
     }
 
     //then generate texture image
-    if(generateTextures){ GenerateTextures(mesh); }
+    if(generateTextures){ GenerateTextures(mesh, false); }
    
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
@@ -1198,6 +863,7 @@ void OnIdle() {
 
     //assign updated color values to the mesh teapot object
     teapotObject.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
+    teapotObjectSecond.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
 
     //set previous time
     previousTime = currentTime;
@@ -1369,29 +1035,6 @@ int main(int argc, char** argv)
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
 
-    //compile shaders for the environment cubemap
-  //  CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
-
-    //create buffers for env cube
- //   CreateBuffers(cubeInfo.vbo, cubeObject, cubeMesh, false, false, false);
-
-    //create array of texture face fileNames
-    /*
-    std::vector<std::string> faceNames = {
-        "cubemap_posx.png",
-        "cubemap_negx.png",
-        "cubemap_posy.png",
-        "cubemap_negy.png",
-        "cubemap_posz.png",
-        "cubemap_negz.png",
-    };
-
-    
-    */
-    //create and bind 6 texture faces for the cubemap
-  //  BindCubeMapTextures(cubeInfo.texIDDiffuse, faceNames);
-
-
        //compile teapot for shadow map
        CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
        CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
@@ -1399,62 +1042,51 @@ int main(int argc, char** argv)
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, teapotObject);
 
-
-
        //compile teapot for actual rendering
        CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
        CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
 
-       //compile teapot for actual rendering
+       //compile second teapot for shadow map
        CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
        CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
-       //compile teapot for actual rendering
+       //compile  second teapot for actual rendering
        CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
        CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
+       //set second teapot scale and position in worldspace
        teapotObjectSecond.SetScale(1.0f);
        teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
+       //compile plane for shadow map
        CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
        CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false);
 
+       //compile plane for actual rendering
        CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
        CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
 
-
-       quadObject.SetScale(50.0f);
-       quadObject.SetPosition(0.0f, -18.0f, 5.0f);
-
-       //compile plane for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", planeInfo.vao, planeInfo.programID);
-       CreatePlaneBuffers(planeInfo.vbo, planeObject);
-
-       //compile plane for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", planeInfoShadow.vao, planeInfoShadow.programID);
-       CreatePlaneBuffers(planeInfoShadow.vbo, planeObject);
-
+       //set plane position, scale, and color for the scene
+       quadObject.SetScale(200.0f);
+       quadObject.SetPosition(0.0f, -15.0f, 5.0f);
+       quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
        //compile testing display depth plane
        CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
        CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
 
-       //intialize render texure, set filtering and bind
-       //RenderToTexture();
+       //Compile shaders for the light model
+       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+       CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
 
-       //set up shadow map!
+       //set light model scale
+       cubeObject.scale = (0.3f);
+
+       //initialize shadow/depth map texture
        CreateShadowMap();
 
-       //set up scale + position for object, don't need rotation
-       planeObject.SetScale(10.0f);
-       planeObject.SetPosition(0.0, -20, 0.0f);
-       
-
-
-       depthDisplayObject.SetScale(3.0f);
-       depthDisplayObject.SetPosition(0.0f, 8.0f, 10.0f);
-       depthDisplayObject.Rotate(-90.0f, 0.0f, 0.0f);
-
+       //initialize light position
+       lightInfo.lightPosition = camera.GetPosition();
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);

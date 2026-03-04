@@ -24,7 +24,7 @@ uniform vec3 viewPos;
 uniform vec3 lightPosition;
 
 
-
+//calculates how much shadow should be applied to current fragment
 float ShadowCalculation(vec4 fragPos){
 
 //ensures this works with both ortho and perspective matrices
@@ -87,9 +87,8 @@ void main(){
 
 	vec3 ambientFinal = ambientColor * objectColor;
 
+	//apply shadow to the final coloring wiht lighting
 	float shadow = ShadowCalculation(fragPosLightSpace);
 	vec3 lighting = (ambientFinal + (shadow)) * (diffuse + specular);
 	color = vec4(lighting, 1.0f);
-
-
 }

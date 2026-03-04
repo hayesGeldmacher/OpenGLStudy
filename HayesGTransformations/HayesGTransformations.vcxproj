@@ -138,6 +138,8 @@
     <None Include="cubeMap.vert" />
     <None Include="depthDisplay.frag" />
     <None Include="depthDisplay.vert" />
+    <None Include="lightModel.frag" />
+    <None Include="lightModel.vert" />
     <None Include="packages.config" />
     <None Include="reflection.frag" />
     <None Include="reflection.vert" />
@@ -145,6 +147,8 @@
     <None Include="renderedReflections.vert" />
     <None Include="renderText.frag" />
     <None Include="renderText.vert" />
+    <None Include="shadowedPlane.frag" />
+    <None Include="shadowedPlane.vert" />
     <None Include="shadowMap.frag" />
     <None Include="shadowMap.vert" />
   </ItemGroup>
@@ -159,6 +163,9 @@
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Vertex.h" />
     <ClInclude Include="WorldTransform.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="shadowedPlane.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
