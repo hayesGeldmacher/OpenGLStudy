@@ -68,7 +68,15 @@ float ShadowCalculation(vec4 fragPos){
 
 void main(){
 
-	vec3 norm = normalize(vNormal);
+	
+	//vec3 rgb_normal = normal * 0.5 + 0.5; //transforms to normal map of -1 to 1
+	
+	vec3 normal = texture(normalMap, vTex).rgb;
+	vec3 norm = normalize(normal * 2.0 - 1.0);
+
+
+
+	//vec3 norm = normalize(vNormal);
 	vec3 lightDir = normalize(lightPosition - FragPos);
 
 	//get diffuse 
@@ -77,6 +85,7 @@ void main(){
 	
 	//get ambient
 	vec3 ambientColor = ambientStrength * lightColor;
+	
 
 	//get reflections for phong shading
 	vec3 viewDir = normalize(viewPos - FragPos);
@@ -97,7 +106,6 @@ void main(){
 	color = vec4(lighting, 1.0f);
 
 
-	vec3 normalColor = texture(normalMap, vTex).rgb;
-	//color = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-	color = vec4(normalColor, 1.0f);
+	
+
 }

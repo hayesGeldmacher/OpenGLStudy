@@ -105,6 +105,7 @@ cy::GLRenderTexture2D renderBuffer;
 
 ProgramInfo quadInfo;
 ProgramInfo quadInfoShadow;
+ProgramInfo wireframeInfo;
 
 //screen width and height
 const static int width = 800;
@@ -146,6 +147,8 @@ glm::vec3 camUp(0.0f, 1.0f, 0.0f);
 
 //boolean, determines if you are rotating teapot object or the rendered plane
 bool rotatingPlane = false;
+
+bool displayWireFrame = false;
 
 //instace of camera class, generates view matrix
 Camera camera(camPos, camTarget, camUp);
@@ -293,7 +296,7 @@ glm::mat4 GetLightMatrix() {
 }
 
 //renders mesh objects from start to finish
-void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool useTextures, bool useLight) {
+void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool useTextures, bool useLight, bool useNormalMap) {
     
     //use the desired shader program
     glUseProgram(programInfo.programID);
@@ -323,6 +326,11 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &
         glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
     }
 
+    if (useNormalMap) {
+        glBindTexture(GL_TEXTURE_2D, programInfo.texIDNormal);
+    }
+
+
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
@@ -350,15 +358,33 @@ void OnDisplay() {
     glActiveTexture(GL_TEXTURE0);
     //glBindTexture(GL_TEXTURE_2D, depthMap);
     //sets the camera target to teapot
-    camera.SetTarget(quadObject.GetPosition());
+    camera.SetTarget(depthDisplayObject.GetPosition());
     //RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
     //RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-    RenderMeshObject(quadInfoShadow, camera, quadObject, true, false);
+   //  RenderMeshObject(quadInfoShadow, camera, quadObject, false, false, true);
+
+    //now try rendering the plane
+     //use the desired shader program
+    glUseProgram(depthDisplayInfo.programID);
+    glBindVertexArray(depthDisplayInfo.vao);
+    SetUniformAttributesLighting(depthDisplayInfo.programID, camera, depthDisplayObject);
+    SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
+    glBindTexture(GL_TEXTURE_2D, depthDisplayInfo.texIDNormal);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    if (displayWireFrame) {
+        //render the wireframe
+        glUseProgram(wireframeInfo.programID);
+        glBindVertexArray(depthDisplayInfo.vao);
+        SetUniformAttributesTransformations(wireframeInfo, depthDisplayObject, camera, false);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
 
     //render the light model object
-    //glm::vec3 lightPos = lightInfo.lightPosition;
-   // cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
-  //  RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+    glm::vec3 lightPos = lightInfo.lightPosition;
+    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    RenderMeshObject(lightModelInfo, camera, cubeObject, false, false, false);
 
     //swap buffers, end loop
     glutSwapBuffers();
@@ -751,7 +777,7 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
         std::string teapotTextureName = "teapotNormal.png";
         const GLchar* uniformName = "normalMap";
         //LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
-        BindTexturesMTL(quadInfoShadow, teapotTextureName, quadInfoShadow.texIDDiffuse, uniformName);
+        BindTexturesMTL(quadInfoShadow, teapotTextureName, quadInfoShadow.texIDNormal, uniformName);
         
     }
    
@@ -798,9 +824,10 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object, bool createTextures
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
 
     if (createTextures) {
-        std::string teapotTextureName = "teapot_normal";
+        std::string teapotTextureName = "teapotNormal.png";
         const GLchar* uniformName = "normalMap";
-        LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
+        //LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
+        BindTexturesMTL(depthDisplayInfo, teapotTextureName, depthDisplayInfo.texIDNormal, uniformName);
     }
 }
 
@@ -856,6 +883,104 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
     programID = glCreateProgram();
     glAttachShader(programID, vs);
     glAttachShader(programID, fs);
+    glLinkProgram(programID);
+
+    glGetProgramiv(programID, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(programID, 512, NULL, infoLog);
+        std::cout << "ERROR: PROGRAM LINKING FAILED: " << infoLog << std::endl;
+    }
+    else {
+        std::cout << "program linking successful" << std::endl;
+    }
+
+    //use program and delete shader objects
+    glUseProgram(programID);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    //create vertex array object before the buffer,
+    //stores the connections betwen a buffer and attributes for a particular object
+    glGenVertexArrays(1, &vaoID);
+    glBindVertexArray(vaoID);
+}
+
+//compiles shaders with given program and file information
+void CompileShadersWithGeo(const char* vertName, const std::string& fragName, const std::string& geoName, GLuint& vaoID, GLuint& programID) {
+
+    //manually compile vertex shader
+    std::ifstream fVert(vertName);
+    std::string file_contentsVert{ std::istreambuf_iterator<char>(fVert), std::istreambuf_iterator<char>() };
+    //create char array of correct length, copy string into char array
+    char* vsSource = new char[file_contentsVert.length() + 1];
+    std::strcpy(vsSource, file_contentsVert.c_str());
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    const GLchar* sourceChar = vsSource;
+    glShaderSource(vs, 1, &sourceChar, nullptr);
+    glCompileShader(vs);
+
+    //check vertex compilation success
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        std::cout << "ERROR:SHADER::VERTEX::COMPILATION_FAILED FOR:" << vertName <<
+            infoLog << std::endl;
+    }
+    else {
+        std::cout << "Vertex shader compilation successful for " << vertName << std::endl;
+    }
+
+    //compile fragment shader
+    std::ifstream fFrag(fragName);
+    std::string file_contentsFrag{ std::istreambuf_iterator<char>(fFrag), std::istreambuf_iterator<char>() };
+    char* fsSource = new char[file_contentsFrag.length() + 1];
+    std::strcpy(fsSource, file_contentsFrag.c_str());
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    const GLchar* fragChar = fsSource;
+    glShaderSource(fs, 1, &fragChar, nullptr);
+    glCompileShader(fs);
+
+    //get frag shader compilation success
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED FOR: " << fragName <<
+            infoLog << std::endl;
+    }
+    else {
+        std::cout << "Fragment shader compilation successful for " << fragName << std::endl;
+    }
+
+
+    //manually compile geometry shader
+    std::ifstream fGeo(geoName);
+    std::string file_contentsGeo{ std::istreambuf_iterator<char>(fGeo), std::istreambuf_iterator<char>() };
+    //create char array of correct length, copy string into char array
+    char* gsSource = new char[file_contentsGeo.length() + 1];
+    std::strcpy(gsSource, file_contentsGeo.c_str());
+    GLuint gs = glCreateShader(GL_GEOMETRY_SHADER);
+    const GLchar* geoChar = gsSource;
+    glShaderSource(gs, 1, &geoChar, nullptr);
+    glCompileShader(gs);
+
+    //get geo shader compilation success
+    glGetShaderiv(gs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        std::cout << "ERROR:SHADER::GEO::COMPILATION_FAILED FOR: " << geoName <<
+            infoLog << std::endl;
+    }
+    else {
+        std::cout << "Geometry shader compilation successful for " << geoName << std::endl;
+    }
+
+    //create and link program
+    programID = glCreateProgram();
+    glAttachShader(programID, vs);
+    glAttachShader(programID, fs);
+    glAttachShader(programID, gs);
     glLinkProgram(programID);
 
     glGetProgramiv(programID, GL_LINK_STATUS, &success);
@@ -979,6 +1104,16 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     else if (key == 'r') {
         //toggle object idle rotation
         teapotObject.ToggleRotating();
+    }
+    else if (key == 32) { //space bar 
+        
+        //toggle wireframe
+        displayWireFrame = !displayWireFrame;
+        if (displayWireFrame) { std::cout << "Now displaying wireframe!" << std::endl; }
+        else {
+            std::cout << "No longer displaying wireframe!" << std::endl;
+        }
+    
     }
 }
 
@@ -1123,25 +1258,35 @@ int main(int argc, char** argv)
        //CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false, false);
 
        //compile plane for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
-       CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false, true);
+       //CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
+      // CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false, true);
 
        //set plane position, scale, and color for the scene
-       quadObject.SetScale(20.0f);
-       quadObject.SetPosition(0.0f, -15, 5.0f);
-       quadObject.SetRotation(90.0f, 0.0f, 0.0f);
-       quadObject.SetColor(0.1f, 1.0f, 0.6f);
+     //  quadObject.SetScale(20.0f);
+     //  quadObject.SetPosition(0.0f, -15, 5.0f);
+     //  quadObject.SetRotation(90.0f, 0.0f, 0.0f);
+    //   quadObject.SetColor(0.1f, 1.0f, 0.6f);
+       //compile shaders for the wireframe plane with geometry shader
+       CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", wireframeInfo.vao, wireframeInfo.programID);
+       CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false);
 
        //compile testing display depth plane
-      //  CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-      //  CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
+       CompileShaders("shadowObject.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+       CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
+
+
+       depthDisplayObject.SetScale(5.0f);
+       depthDisplayObject.SetPosition(0.0f, -15, 5.0f);
+       depthDisplayObject.SetColor(0.1f, 1.0f, 0.6f);
+
+
 
        //Compile shaders for the light model
-      // CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-      // CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false, false);
+        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+        CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false, false);
 
        //set light model scale
-      // cubeObject.scale = (0.3f);
+        cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
       // CreateShadowMap();
