@@ -389,6 +389,12 @@ void OnDisplay() {
     //swap buffers, end loop
     glutSwapBuffers();
 
+    //just showing how we would tessellate!
+    //number here is how many vertices each primitive will have
+    //we are subdividing triangles, so just need 3
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
+    glDrawArrays(GL_PATCHES, 0, 100);
+
 }
 
 //called when we want to initialize a depth map for use 

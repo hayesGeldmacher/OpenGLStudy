@@ -173,6 +173,7 @@
     <Text Include="shadowedPlane.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="teapotDisplace.png" />
     <Image Include="teapot_normal.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -63,6 +63,8 @@
     <None Include="geoShader.geom" />
     <None Include="tescControl.tesc" />
     <None Include="tesEval.tese" />
+    <None Include="wireframePlane.frag" />
+    <None Include="wireframePlane.vert" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">
@@ -101,6 +103,9 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="teapot_normal.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="teapotDisplace.png">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

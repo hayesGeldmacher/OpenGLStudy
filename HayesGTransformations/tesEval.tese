@@ -1,7 +1,7 @@
 #version 410 core
 
 //accepts quads, equal spacing, counter clockwise order
-layout(quads, equal_spacing, ccw) in;
+layout(triangles, equal_spacing, ccw) in;
 
 //access to all data for quad
 in vec3 myData[];
