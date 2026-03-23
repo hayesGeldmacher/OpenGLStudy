@@ -15,9 +15,9 @@ void main(){
 						1);
 
 	//BUT we have access to all four verts in the quad
-	gl_Position = interpolate( gl_in[0].gl_Position,
-								gl_in[1].gl_Position,
-								gl_in[2].gl_Position,
-								gl_in[3].gl_Position);
+	//gl_Position = interpolate( gl_in[0].gl_Position,
+							//	gl_in[1].gl_Position,
+							//	gl_in[2].gl_Position,
+						//		gl_in[3].gl_Position);
 
 }

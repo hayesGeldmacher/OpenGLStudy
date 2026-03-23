@@ -912,7 +912,7 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
 }
 
 //compiles shaders with given program and file information
-void CompileShadersWithGeo(const char* vertName, const std::string& fragName, const std::string& geoName, GLuint& vaoID, GLuint& programID) {
+void CompileShadersWithGeo(const char* vertName, const std::string& fragName, const std::string& geoName, const std::string& controlName, const std::string& evalName, GLuint& vaoID, GLuint& programID) {
 
     //manually compile vertex shader
     std::ifstream fVert(vertName);
@@ -951,7 +951,7 @@ void CompileShadersWithGeo(const char* vertName, const std::string& fragName, co
     //get frag shader compilation success
     glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        glGetShaderInfoLog(fs, 512, NULL, infoLog);
         std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED FOR: " << fragName <<
             infoLog << std::endl;
     }
@@ -974,7 +974,7 @@ void CompileShadersWithGeo(const char* vertName, const std::string& fragName, co
     //get geo shader compilation success
     glGetShaderiv(gs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        glGetShaderInfoLog(vs, 512, NULL, infoLog);
+        glGetShaderInfoLog(gs, 512, NULL, infoLog);
         std::cout << "ERROR:SHADER::GEO::COMPILATION_FAILED FOR: " << geoName <<
             infoLog << std::endl;
     }
@@ -982,10 +982,57 @@ void CompileShadersWithGeo(const char* vertName, const std::string& fragName, co
         std::cout << "Geometry shader compilation successful for " << geoName << std::endl;
     }
 
+    //manually compile tessellation control shader
+    std::ifstream fControl(controlName);
+    std::string file_contentsControl{ std::istreambuf_iterator<char>(fControl), std::istreambuf_iterator<char>() };
+    //create char array of correct length, copy string into char array
+    char* csSource = new char[file_contentsControl.length() + 1];
+    std::strcpy(csSource, file_contentsControl.c_str());
+    GLuint cs = glCreateShader(GL_TESS_CONTROL_SHADER);
+    const GLchar* controlChar = csSource;
+    glShaderSource(cs, 1, &controlChar, nullptr);
+    glCompileShader(cs);
+
+    //get control shader compilation success
+    glGetShaderiv(cs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(cs, 512, NULL, infoLog);
+        std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << controlName <<
+            infoLog << std::endl;
+    }
+    else {
+        std::cout << "Tess Control shader compilation successful for " << controlName << std::endl;
+    }
+
+    //manually compile tessellation evaluation shader
+    std::ifstream fEval(evalName);
+    std::string file_contentsEval{ std::istreambuf_iterator<char>(fEval), std::istreambuf_iterator<char>() };
+    //create char array of correct length, copy string into char array
+    char* esSource = new char[file_contentsEval.length() + 1];
+    std::strcpy(esSource, file_contentsEval.c_str());
+    GLuint es = glCreateShader(GL_TESS_EVALUATION_SHADER);
+    const GLchar* evalChar = esSource;
+    glShaderSource(es, 1, &evalChar, nullptr);
+    glCompileShader(es);
+
+    //get control shader compilation success
+    glGetShaderiv(es, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(es, 512, NULL, infoLog);
+        std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << evalName <<
+            infoLog << std::endl;
+    }
+    else {
+        std::cout << "Tess Control shader compilation successful for " << evalName << std::endl;
+    }
+
+
     //create and link program
     programID = glCreateProgram();
     glAttachShader(programID, vs);
     glAttachShader(programID, fs);
+    glAttachShader(programID, cs);
+    glAttachShader(programID, es);
     glAttachShader(programID, gs);
     glLinkProgram(programID);
 
@@ -1273,7 +1320,7 @@ int main(int argc, char** argv)
      //  quadObject.SetRotation(90.0f, 0.0f, 0.0f);
     //   quadObject.SetColor(0.1f, 1.0f, 0.6f);
        //compile shaders for the wireframe plane with geometry shader
-       CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", wireframeInfo.vao, wireframeInfo.programID);
+       CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", wireframeInfo.vao, wireframeInfo.programID);
        CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false);
 
        //compile testing display depth plane

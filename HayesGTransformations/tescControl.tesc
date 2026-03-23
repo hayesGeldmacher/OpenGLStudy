@@ -14,13 +14,13 @@ out vec3 myData[];
 in vec3 vNormalTesc[];
 in vec3 FragPosTesc[];
 in vec2 vTexTesc[];
-in vec4 fragPosLightSpaceTesc;
+in vec4 fragPosLightSpaceTesc[];
 
 //out matching pairs for above
-out vec3 vNormalFrag;
-out vec3 FragPosFrag;
-out vec2 vTexFrag;
-out vec4 fragPosLightSpaceFrag;
+out vec3 vNormalFrag[];
+out vec3 FragPosFrag[];
+out vec2 vTexFrag[];
+out vec4 fragPosLightSpaceFrag[];
 
 void main(void){
 
@@ -38,6 +38,6 @@ void main(void){
 	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
 
 	//how we send variables to next fields
-	vNormalFrag[gl_InvocationID].gl_Position = vNormalTesc[gl_InvocationID];
+	//vNormalFrag[gl_InvocationID].gl_Position = vNormalTesc[gl_InvocationID];
 
 }
