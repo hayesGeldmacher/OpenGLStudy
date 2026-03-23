@@ -8,6 +8,10 @@ in vec3 FragPos;
 in vec2 vTex;
 in vec4 fragPosLightSpace;
 
+
+//normal mapping
+uniform sampler2D normalMap;
+
 //shadows
 uniform sampler2D shadowTexture;
 
@@ -91,4 +95,9 @@ void main(){
 	float shadow = ShadowCalculation(fragPosLightSpace);
 	vec3 lighting = (ambientFinal + (shadow)) * (diffuse + specular);
 	color = vec4(lighting, 1.0f);
+
+
+	vec3 normalColor = texture(normalMap, vTex).rgb;
+	//color = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+	color = vec4(normalColor, 1.0f);
 }

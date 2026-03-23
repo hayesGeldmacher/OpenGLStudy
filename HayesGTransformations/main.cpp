@@ -330,35 +330,35 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &
 void OnDisplay() {
 
     //1. first render to depth map
-    glCullFace(GL_FRONT);
-    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
+  //  glCullFace(GL_FRONT);
+ //   glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+  //  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+  //  glClear(GL_DEPTH_BUFFER_BIT);
 
     //render both teapots and the plane to the depth buffer
         //update object rotation
-    teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-    RenderMeshObject(teapotInfo, camera, teapotObject, false, true);
-    RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
-    RenderMeshObject(quadInfo, camera, quadObject, false, true);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glCullFace(GL_BACK);
+  //  teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
+  //  RenderMeshObject(teapotInfo, camera, teapotObject, false, true);
+    //RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
+ //   RenderMeshObject(quadInfo, camera, quadObject, false, true);
+ //   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//    glCullFace(GL_BACK);
     
     //next render the scene like usual, using depth map as texture
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
+    //glBindTexture(GL_TEXTURE_2D, depthMap);
     //sets the camera target to teapot
-    camera.SetTarget(teapotObject.GetPosition());
-    RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
-    RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-    RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
+    camera.SetTarget(quadObject.GetPosition());
+    //RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
+    //RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
+    RenderMeshObject(quadInfoShadow, camera, quadObject, true, false);
 
     //render the light model object
-    glm::vec3 lightPos = lightInfo.lightPosition;
-    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
-    RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+    //glm::vec3 lightPos = lightInfo.lightPosition;
+   // cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+  //  RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
 
     //swap buffers, end loop
     glutSwapBuffers();
@@ -474,7 +474,6 @@ void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLui
         GL_UNSIGNED_BYTE, //data type = RGBA, RGBA, et cet in scanline format - 8 bits per channel
         &image[0] //pixel array data
     );
-
     //create mipmap levels
     //the order of the below function doesn't matter - 
     //we can generate mipmaps whenever as long as its before we use them and send to GPU!
@@ -649,8 +648,55 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
     );
 }
 
+
+void LoadNormalImage(const std::string fileName, ProgramInfo& programInfo, const GLchar* uniformName) {
+
+    glGenTextures(1, &programInfo.texIDDiffuse);
+
+    glActiveTexture(GL_TEXTURE0 + programInfo.texIDDiffuse); //define unit zero, is also default unit
+    glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
+
+    //for loop to generate texture images for all 6 faces
+    int width = 0;
+    int height = 0;
+    int colorChannels = 0;
+
+    const char* newNormalFile = "cubemap_negz.png";
+        unsigned char* image = imageLoader.loadImageFromPNG(newNormalFile, width, height, colorChannels);
+        if (image) {
+            std::cout << "WIDTH: " << width << std::endl;
+            std::cout << "HEIGHT: " << height << std::endl;
+            std::cout << "ColorChannels " << colorChannels << std::endl;
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexImage2D(
+                //iterating the enum eahc time to move through each face
+                GL_TEXTURE_2D,
+                0,        //mipmap level 0
+                GL_RGBA,  //internal format
+                width,    //image width
+                height,   //image height
+                0,        //borderr (must be 0)
+                GL_RGBA,  //format
+                GL_UNSIGNED_BYTE,  //data type
+                image //pixel array data
+            );
+
+
+        }
+        else {
+            std::cout << "failed to load image at path: " << newNormalFile << std::endl;
+            stbi_image_free(image);
+        }
+
+     //setting the uniform sampler variable
+    GLint sampler = glGetUniformLocation(programInfo.programID, uniformName);
+    glUseProgram(programInfo.programID);
+    glUniform1i(sampler, programInfo.texIDDiffuse); //set to match the texture unit from glActiveTexture
+
+}
+
 //creates buffer for vertex pos and normal info, sets related attributes
-void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool hasNormals, bool hasTexCoords, bool generateTextures) {
+void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool hasNormals, bool hasTexCoords, bool generateTextures, bool generateNormalMap) {
     
 
     mesh = LoadObjectFile(object.objectFileName);
@@ -700,6 +746,14 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
 
     //then generate texture image
     if(generateTextures){ GenerateTextures(mesh, false); }
+
+    if(generateNormalMap){
+        std::string teapotTextureName = "teapotNormal.png";
+        const GLchar* uniformName = "normalMap";
+        //LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
+        BindTexturesMTL(quadInfoShadow, teapotTextureName, quadInfoShadow.texIDDiffuse, uniformName);
+        
+    }
    
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
@@ -724,7 +778,7 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
 }
 
 //creates buffers specifically for the plane object, different logic than above function due to lack of mesh obj file
-void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
+void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object, bool createTextures) {
     
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
@@ -742,6 +796,12 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
     //interpret tex coords data
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
+
+    if (createTextures) {
+        std::string teapotTextureName = "teapot_normal";
+        const GLchar* uniformName = "normalMap";
+        LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
+    }
 }
 
 //compiles shaders with given program and file information
@@ -1036,54 +1096,55 @@ int main(int argc, char** argv)
     glClearColor(0, 0, 0, 0);
 
        //compile teapot for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
-       CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
+    // CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
+    // CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
         
        //center teapot, set rot, pos, and scale
-       InitializeObject(teapotMesh, teapotObject);
+     // InitializeObject(teapotMesh, teapotObject);
 
        //compile teapot for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
-       CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
+       //CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
+       //CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
 
        //compile second teapot for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
-       CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+       //CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
+       //CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
        //compile  second teapot for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
-       CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+       //CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
+       //CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
        //set second teapot scale and position in worldspace
-       teapotObjectSecond.SetScale(1.0f);
-       teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
+      // teapotObjectSecond.SetScale(1.0f);
+      // teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
        //compile plane for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
-       CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false);
+      // CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
+       //CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false, false);
 
        //compile plane for actual rendering
        CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
-       CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
+       CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false, true);
 
        //set plane position, scale, and color for the scene
-       quadObject.SetScale(200.0f);
-       quadObject.SetPosition(0.0f, -15.0f, 5.0f);
+       quadObject.SetScale(20.0f);
+       quadObject.SetPosition(0.0f, -15, 5.0f);
+       quadObject.SetRotation(90.0f, 0.0f, 0.0f);
        quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
        //compile testing display depth plane
-       CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-       CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
+      //  CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+      //  CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
 
        //Compile shaders for the light model
-       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-       CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
+      // CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+      // CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false, false);
 
        //set light model scale
-       cubeObject.scale = (0.3f);
+      // cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
-       CreateShadowMap();
+      // CreateShadowMap();
 
        //initialize light position
        lightInfo.lightPosition = camera.GetPosition();

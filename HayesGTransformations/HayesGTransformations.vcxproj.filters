@@ -60,6 +60,9 @@
     <None Include="shadowedPlane.vert" />
     <None Include="lightModel.frag" />
     <None Include="lightModel.vert" />
+    <None Include="geoShader.geom" />
+    <None Include="tescControl.tesc" />
+    <None Include="tesEval.tese" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">
@@ -95,5 +98,10 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="shadowedPlane.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="teapot_normal.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

@@ -18,6 +18,9 @@ struct ProgramInfo {
 	GLuint texIDDiffuse = 0;
 	//location of texture unit for specularity texture
 	GLuint texIDSpec = 1;
+	//location of texture unit for normal texture
+	GLuint texIDNormal = 0;
+
 
 	//just for render-to-texture
 	GLuint frameBuffer;

@@ -138,6 +138,7 @@
     <None Include="cubeMap.vert" />
     <None Include="depthDisplay.frag" />
     <None Include="depthDisplay.vert" />
+    <None Include="geoShader.geom" />
     <None Include="lightModel.frag" />
     <None Include="lightModel.vert" />
     <None Include="packages.config" />
@@ -151,6 +152,8 @@
     <None Include="shadowedPlane.vert" />
     <None Include="shadowMap.frag" />
     <None Include="shadowMap.vert" />
+    <None Include="tescControl.tesc" />
+    <None Include="tesEval.tese" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
@@ -166,6 +169,9 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="shadowedPlane.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="teapot_normal.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
