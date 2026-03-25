@@ -26,4 +26,7 @@ struct ProgramInfo {
 	GLuint frameBuffer;
 	GLuint renderedTexture;
 
+	bool renderGeometryShader;
+	bool renderTessellationsShader;
+
 };

@@ -154,6 +154,8 @@
     <None Include="shadowMap.vert" />
     <None Include="tescControl.tesc" />
     <None Include="tesEval.tese" />
+    <None Include="TessellatedPlane.frag" />
+    <None Include="TessellatedPlane.vert" />
     <None Include="wireframePlane.frag" />
     <None Include="wireframePlane.vert" />
   </ItemGroup>

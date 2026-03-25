@@ -65,6 +65,12 @@
     <None Include="tesEval.tese" />
     <None Include="wireframePlane.frag" />
     <None Include="wireframePlane.vert" />
+    <None Include="TessellatedPlane.vert">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="TessellatedPlane.frag">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">

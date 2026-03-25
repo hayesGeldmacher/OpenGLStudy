@@ -28,8 +28,8 @@
 #include "ProgramInfo.h"
 #include "ColorInfo.h"
 #include "ImageLoader.h"
-//Hayes Geldmacher - 3/3/26
-//CS 6610 - Project 7: shadow mapping
+//Hayes Geldmacher - 3/25/26
+//CS 6610 - Project 8: tessellations
 
 //Instructions/controls:
 /*
@@ -148,13 +148,14 @@ glm::vec3 camUp(0.0f, 1.0f, 0.0f);
 //boolean, determines if you are rotating teapot object or the rendered plane
 bool rotatingPlane = false;
 
-bool displayWireFrame = false;
+bool displayWireFrame = true;
 
 //instace of camera class, generates view matrix
 Camera camera(camPos, camTarget, camUp);
 
 //instance of plane-specific camera 
 Camera planeCamera(camPos, camTarget, camUp);
+
 
 //struct, generates perpective and orthographic matrices
 struct persProj {
@@ -206,6 +207,12 @@ Color green(0.2, false, true);
 
 Color* colors[] = { &red, &blue, &green };
 glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+//tessellation levels:
+int minTessLevel = 1;
+int maxTessLevel = 20;
+int currentTessLevel = 5;
+
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransform &object) {
@@ -365,22 +372,37 @@ void OnDisplay() {
 
     //now try rendering the plane
      //use the desired shader program
-    glUseProgram(depthDisplayInfo.programID);
-    glBindVertexArray(depthDisplayInfo.vao);
-    SetUniformAttributesLighting(depthDisplayInfo.programID, camera, depthDisplayObject);
-    SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
-    glBindTexture(GL_TEXTURE_2D, depthDisplayInfo.texIDNormal);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+   // glUseProgram(depthDisplayInfo.programID);
+   // glBindVertexArray(depthDisplayInfo.vao);
+   // SetUniformAttributesLighting(depthDisplayInfo.programID, camera, depthDisplayObject);
+   // SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
+   // glBindTexture(GL_TEXTURE_2D, depthDisplayInfo.texIDNormal);
+   // int max;
+    //glGetIntegerv(GL_MAX_PATCH_VERTICES, 3);
+  //  glPatchParameteri(GL_PATCH_VERTICES, 3);
+  //  glDrawArrays(GL_PATCHES, 0, 6);
 
-    if (displayWireFrame) {
         //render the wireframe
-        glUseProgram(wireframeInfo.programID);
-        glBindVertexArray(depthDisplayInfo.vao);
-        SetUniformAttributesTransformations(wireframeInfo, depthDisplayObject, camera, false);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+    if (displayWireFrame) {
+            glUseProgram(wireframeInfo.programID);
+            glBindVertexArray(wireframeInfo.vao);
+            GLuint uniformLocation = glGetUniformLocation(wireframeInfo.programID, "tessLevel");
+            glUniform1f(uniformLocation, currentTessLevel);
+            SetUniformAttributesTransformations(wireframeInfo, depthDisplayObject, camera, false);
+            glPatchParameteri(GL_PATCH_VERTICES, 3);
+            glDrawArrays(GL_PATCHES, 0, 6);
     }
 
+        //render the shadowed plane
+        glUseProgram(planeInfo.programID);
+        glBindVertexArray(planeInfo.vao);
+        GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
+        glUniform1f(uniformLocation, currentTessLevel);
+        SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
+        glPatchParameteri(GL_PATCH_VERTICES, 3);
+        glDrawArrays(GL_PATCHES, 0, 6);
 
+        
     //render the light model object
     glm::vec3 lightPos = lightInfo.lightPosition;
     cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
@@ -388,13 +410,6 @@ void OnDisplay() {
 
     //swap buffers, end loop
     glutSwapBuffers();
-
-    //just showing how we would tessellate!
-    //number here is how many vertices each primitive will have
-    //we are subdividing triangles, so just need 3
-    glPatchParameteri(GL_PATCH_VERTICES, 3);
-    glDrawArrays(GL_PATCHES, 0, 100);
-
 }
 
 //called when we want to initialize a depth map for use 
@@ -680,7 +695,6 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
     );
 }
 
-
 void LoadNormalImage(const std::string fileName, ProgramInfo& programInfo, const GLchar* uniformName) {
 
     glGenTextures(1, &programInfo.texIDDiffuse);
@@ -912,7 +926,7 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
 }
 
 //compiles shaders with given program and file information
-void CompileShadersWithGeo(const char* vertName, const std::string& fragName, const std::string& geoName, const std::string& controlName, const std::string& evalName, GLuint& vaoID, GLuint& programID) {
+void CompileShadersWithGeo(const char* vertName, const std::string& fragName, const std::string& geoName, const std::string& controlName, const std::string& evalName, GLuint& vaoID, ProgramInfo& program) {
 
     //manually compile vertex shader
     std::ifstream fVert(vertName);
@@ -959,86 +973,103 @@ void CompileShadersWithGeo(const char* vertName, const std::string& fragName, co
         std::cout << "Fragment shader compilation successful for " << fragName << std::endl;
     }
 
+    GLuint es = 0;
+    GLuint cs = 0;
+    if (program.renderTessellationsShader) {
 
-    //manually compile geometry shader
-    std::ifstream fGeo(geoName);
-    std::string file_contentsGeo{ std::istreambuf_iterator<char>(fGeo), std::istreambuf_iterator<char>() };
-    //create char array of correct length, copy string into char array
-    char* gsSource = new char[file_contentsGeo.length() + 1];
-    std::strcpy(gsSource, file_contentsGeo.c_str());
-    GLuint gs = glCreateShader(GL_GEOMETRY_SHADER);
-    const GLchar* geoChar = gsSource;
-    glShaderSource(gs, 1, &geoChar, nullptr);
-    glCompileShader(gs);
+        //manually compile tessellation control shader
+        std::ifstream fControl(controlName);
+        std::string file_contentsControl{ std::istreambuf_iterator<char>(fControl), std::istreambuf_iterator<char>() };
+        //create char array of correct length, copy string into char array
+        char* csSource = new char[file_contentsControl.length() + 1];
+        std::strcpy(csSource, file_contentsControl.c_str());
+        cs = glCreateShader(GL_TESS_CONTROL_SHADER);
+        const GLchar* controlChar = csSource;
+        glShaderSource(cs, 1, &controlChar, nullptr);
+        glCompileShader(cs);
 
-    //get geo shader compilation success
-    glGetShaderiv(gs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(gs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::GEO::COMPILATION_FAILED FOR: " << geoName <<
-            infoLog << std::endl;
-    }
-    else {
-        std::cout << "Geometry shader compilation successful for " << geoName << std::endl;
-    }
+        //get control shader compilation success
+        glGetShaderiv(cs, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(cs, 512, NULL, infoLog);
+            std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << controlName <<
+                infoLog << std::endl;
+        }
+        else {
+            std::cout << "Tess Control shader compilation successful for " << controlName << std::endl;
+        }
 
-    //manually compile tessellation control shader
-    std::ifstream fControl(controlName);
-    std::string file_contentsControl{ std::istreambuf_iterator<char>(fControl), std::istreambuf_iterator<char>() };
-    //create char array of correct length, copy string into char array
-    char* csSource = new char[file_contentsControl.length() + 1];
-    std::strcpy(csSource, file_contentsControl.c_str());
-    GLuint cs = glCreateShader(GL_TESS_CONTROL_SHADER);
-    const GLchar* controlChar = csSource;
-    glShaderSource(cs, 1, &controlChar, nullptr);
-    glCompileShader(cs);
+        //manually compile tessellation evaluation shader
+        std::ifstream fEval(evalName);
+        std::string file_contentsEval{ std::istreambuf_iterator<char>(fEval), std::istreambuf_iterator<char>() };
+        //create char array of correct length, copy string into char array
+        char* esSource = new char[file_contentsEval.length() + 1];
+        std::strcpy(esSource, file_contentsEval.c_str());
+        es = glCreateShader(GL_TESS_EVALUATION_SHADER);
+        const GLchar* evalChar = esSource;
+        glShaderSource(es, 1, &evalChar, nullptr);
+        glCompileShader(es);
 
-    //get control shader compilation success
-    glGetShaderiv(cs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(cs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << controlName <<
-            infoLog << std::endl;
-    }
-    else {
-        std::cout << "Tess Control shader compilation successful for " << controlName << std::endl;
-    }
+        //get control shader compilation success
+        glGetShaderiv(es, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(es, 512, NULL, infoLog);
+            std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << evalName <<
+                infoLog << std::endl;
+        }
+        else {
+            std::cout << "Tess Control shader compilation successful for " << evalName << std::endl;
+        }
 
-    //manually compile tessellation evaluation shader
-    std::ifstream fEval(evalName);
-    std::string file_contentsEval{ std::istreambuf_iterator<char>(fEval), std::istreambuf_iterator<char>() };
-    //create char array of correct length, copy string into char array
-    char* esSource = new char[file_contentsEval.length() + 1];
-    std::strcpy(esSource, file_contentsEval.c_str());
-    GLuint es = glCreateShader(GL_TESS_EVALUATION_SHADER);
-    const GLchar* evalChar = esSource;
-    glShaderSource(es, 1, &evalChar, nullptr);
-    glCompileShader(es);
-
-    //get control shader compilation success
-    glGetShaderiv(es, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(es, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::TESC::COMPILATION_FAILED FOR: " << evalName <<
-            infoLog << std::endl;
-    }
-    else {
-        std::cout << "Tess Control shader compilation successful for " << evalName << std::endl;
     }
 
+
+    GLuint gs = 0;
+    if (program.renderGeometryShader) {
+
+        //manually compile geometry shader
+        std::ifstream fGeo(geoName);
+        std::string file_contentsGeo{ std::istreambuf_iterator<char>(fGeo), std::istreambuf_iterator<char>() };
+        //create char array of correct length, copy string into char array
+        char* gsSource = new char[file_contentsGeo.length() + 1];
+        std::strcpy(gsSource, file_contentsGeo.c_str());
+        gs = glCreateShader(GL_GEOMETRY_SHADER);
+        const GLchar* geoChar = gsSource;
+        glShaderSource(gs, 1, &geoChar, nullptr);
+        glCompileShader(gs);
+
+        //get geo shader compilation success
+        glGetShaderiv(gs, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(gs, 512, NULL, infoLog);
+            std::cout << "ERROR:SHADER::GEO::COMPILATION_FAILED FOR: " << geoName <<
+                infoLog << std::endl;
+        }
+        else {
+            std::cout << "Geometry shader compilation successful for " << geoName << std::endl;
+        }
+
+    }
 
     //create and link program
-    programID = glCreateProgram();
-    glAttachShader(programID, vs);
-    glAttachShader(programID, fs);
-    glAttachShader(programID, cs);
-    glAttachShader(programID, es);
-    glAttachShader(programID, gs);
-    glLinkProgram(programID);
+    program.programID = glCreateProgram();
+    glAttachShader(program.programID, vs);
+    glAttachShader(program.programID, fs);
+    if (program.renderTessellationsShader) {
 
-    glGetProgramiv(programID, GL_LINK_STATUS, &success);
+        glAttachShader(program.programID, cs);
+        glAttachShader(program.programID, es);
+
+    }
+    if (program.renderGeometryShader) {
+    glAttachShader(program.programID, gs);
+
+    }
+    glLinkProgram(program.programID);
+
+    glGetProgramiv(program.programID, GL_LINK_STATUS, &success);
     if (!success) {
-        glGetProgramInfoLog(programID, 512, NULL, infoLog);
+        glGetProgramInfoLog(program.programID, 512, NULL, infoLog);
         std::cout << "ERROR: PROGRAM LINKING FAILED: " << infoLog << std::endl;
     }
     else {
@@ -1046,9 +1077,10 @@ void CompileShadersWithGeo(const char* vertName, const std::string& fragName, co
     }
 
     //use program and delete shader objects
-    glUseProgram(programID);
+    glUseProgram(program.programID);
     glDeleteShader(vs);
     glDeleteShader(fs);
+    
 
     //create vertex array object before the buffer,
     //stores the connections betwen a buffer and attributes for a particular object
@@ -1110,6 +1142,19 @@ void OnIdle() {
     glutPostRedisplay();
 }
 
+void ChangeTessLevel(bool up) {
+
+    if (up) {
+        currentTessLevel += 1;
+        if (currentTessLevel > maxTessLevel) { currentTessLevel = maxTessLevel; }
+    }
+    else {
+        currentTessLevel -= 1;
+        if (currentTessLevel < minTessLevel) { currentTessLevel = minTessLevel; }
+    }
+        std::cout << "Current Tessellation level: " << currentTessLevel << std::endl;
+}
+
 //mouse button callback
 void OnMouse(int button, int state, int x, int y) {
 
@@ -1168,6 +1213,7 @@ void OnKeyPressed(unsigned char key, int x, int y) {
         }
     
     }
+
 }
 
 void OnSpecialKeyPressed(int key, int x, int y) {
@@ -1194,6 +1240,14 @@ void OnSpecialKeyPressed(int key, int x, int y) {
         std::cout << "Now rotating the plane!" << std::endl;
         planeCamera.SetEnabled(true);
         camera.SetEnabled(false);
+    }
+
+    if (key == GLUT_KEY_LEFT) {
+
+        ChangeTessLevel(true);
+    }
+    else if (key == GLUT_KEY_RIGHT) {
+        ChangeTessLevel(false);
     }
 
     //tell glut to re-render
@@ -1320,22 +1374,34 @@ int main(int argc, char** argv)
      //  quadObject.SetRotation(90.0f, 0.0f, 0.0f);
     //   quadObject.SetColor(0.1f, 1.0f, 0.6f);
        //compile shaders for the wireframe plane with geometry shader
-       CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", wireframeInfo.vao, wireframeInfo.programID);
-       CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false);
+
+        //render the wireframe overlay
+          wireframeInfo.renderGeometryShader = true;
+          wireframeInfo.renderTessellationsShader = true;
+          CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", wireframeInfo.vao, wireframeInfo);
+          CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false);
+
+       //render the actual shadowed plane
+       planeInfo.renderGeometryShader = false;
+       planeInfo.renderTessellationsShader = true;
+
+       CompileShadersWithGeo("TessellatedPlane.vert", "TessellatedPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfo.vao, planeInfo);
+       CreatePlaneBuffers(planeInfo.vbo, depthDisplayObject, false);
 
        //compile testing display depth plane
-       CompileShaders("shadowObject.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-       CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
+      // CompileShaders("wireframePalne.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+      // CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
 
 
        depthDisplayObject.SetScale(5.0f);
        depthDisplayObject.SetPosition(0.0f, -15, 5.0f);
        depthDisplayObject.SetColor(0.1f, 1.0f, 0.6f);
 
+       glGetError();
 
 
        //Compile shaders for the light model
-        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+         CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
         CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false, false);
 
        //set light model scale
