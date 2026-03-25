@@ -96,11 +96,14 @@ void main(){
 	vec3 ambientFinal = ambientColor * objectColor;
 
 	//apply shadow to the final coloring wiht lighting
+
+
 	float shadow = ShadowCalculation(fragPosLightSpace);
+
 	vec3 lighting = (ambientFinal + (shadow)) * (diffuse + specular);
 	color = vec4(lighting, 1.0f);
 
-	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+//	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	
 

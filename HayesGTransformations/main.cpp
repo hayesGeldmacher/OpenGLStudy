@@ -353,13 +353,14 @@ void OnDisplay() {
      //render the plane once here to generate shadows
 
         //render the shadowed plane
-      glUseProgram(planeInfo.programID);
-      glBindVertexArray(planeInfo.vao);
-      glBindTexture(GL_TEXTURE_2D, planeInfo.texIDDisplace);
-      GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
+      glUseProgram(planeInfoShadow.programID);
+      glBindVertexArray(planeInfoShadow.vao);
+      glBindTexture(GL_TEXTURE_2D, planeInfoShadow.texIDDisplace);
+      glBindTexture(GL_TEXTURE_2D, planeInfoShadow.texIDNormal);
+      GLuint uniformLocation = glGetUniformLocation(planeInfoShadow.programID, "tessLevel");
       glUniform1f(uniformLocation, currentTessLevel);
-      SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
-      SetUniformAttributesLighting(planeInfo.programID, camera, depthDisplayObject);
+      SetUniformAttributesTransformations(planeInfoShadow, planeObject, camera, false);
+      SetUniformAttributesLighting(planeInfoShadow.programID, camera, planeObject);
       glPatchParameteri(GL_PATCH_VERTICES, 3);
       glDrawArrays(GL_PATCHES, 0, 6);
 
@@ -373,16 +374,16 @@ void OnDisplay() {
     glActiveTexture(GL_TEXTURE0);
   
     //sets the camera target to teapot
-    camera.SetTarget(depthDisplayObject.GetPosition());
+    camera.SetTarget(planeObject.GetPosition());
 
         //render the wireframe
     if (displayWireFrame) {
             glUseProgram(wireframeInfo.programID);
             glBindVertexArray(wireframeInfo.vao);
             glBindTexture(GL_TEXTURE_2D, wireframeInfo.texIDDisplace);
-            GLuint uniformLocation = glGetUniformLocation(wireframeInfo.programID, "tessLevel");
+            uniformLocation = glGetUniformLocation(wireframeInfo.programID, "tessLevel");
             glUniform1f(uniformLocation, currentTessLevel);
-            SetUniformAttributesTransformations(wireframeInfo, depthDisplayObject, camera, false);
+            SetUniformAttributesTransformations(wireframeInfo, planeObject, camera, false);
             glPatchParameteri(GL_PATCH_VERTICES, 3);
             glDrawArrays(GL_PATCHES, 0, 6);
     }
@@ -391,12 +392,13 @@ void OnDisplay() {
         glUseProgram(planeInfo.programID);
         glBindVertexArray(planeInfo.vao);
 
+        glBindTexture(GL_TEXTURE_2D, depthMap);
         glBindTexture(GL_TEXTURE_2D, planeInfo.texIDNormal);
         glBindTexture(GL_TEXTURE_2D, planeInfo.texIDDisplace);
-        GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
+        uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
         glUniform1f(uniformLocation, currentTessLevel);
-        SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
-        SetUniformAttributesLighting(planeInfo.programID, camera, depthDisplayObject);
+        SetUniformAttributesTransformations(planeInfo, planeObject, camera, false);
+        SetUniformAttributesLighting(planeInfo.programID, camera, planeObject);
         glPatchParameteri(GL_PATCH_VERTICES, 3);
         glDrawArrays(GL_PATCHES, 0, 6);
 
@@ -1343,27 +1345,27 @@ int main(int argc, char** argv)
           wireframeInfo.renderGeometryShader = true;
           wireframeInfo.renderTessellationsShader = true;
           CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", wireframeInfo.vao, wireframeInfo);
-          CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false, true, wireframeInfo);
+          CreatePlaneBuffers(wireframeInfo.vbo, planeObject, false, true, wireframeInfo);
 
        //render the actual shadowed plane
        planeInfo.renderGeometryShader = false;
        planeInfo.renderTessellationsShader = true;
 
        CompileShadersWithGeo("TessellatedPlane.vert", "TessellatedPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfo.vao, planeInfo);
-       CreatePlaneBuffers(planeInfo.vbo, depthDisplayObject, true, true, planeInfo);
+       CreatePlaneBuffers(planeInfo.vbo, planeObject, true, true, planeInfo);
 
        //compile tessellated plane to generate shadow maps
        CompileShadersWithGeo("TessellatedPlane.vert", "shadowedTessPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfoShadow.vao, planeInfoShadow);
-       CreatePlaneBuffers(planeInfoShadow.vbo, depthDisplayObject, false, true, planeInfoShadow);
+       CreatePlaneBuffers(planeInfoShadow.vbo, planeObject, false, true, planeInfoShadow);
 
        //compile testing display depth plane
-      // CompileShaders("wireframePalne.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
+         //CompileShaders("wireframePalne.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
       // CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject, true);
 
 
-       depthDisplayObject.SetScale(5.0f);
-       depthDisplayObject.SetPosition(0.0f, -15, 5.0f);
-       depthDisplayObject.SetColor(0.1f, 1.0f, 0.6f);
+       planeObject.SetScale(5.0f);
+       planeObject.SetPosition(0.0f, -15, 5.0f);
+       planeObject.SetColor(0.1f, 1.0f, 0.6f);
 
        glGetError();
 
@@ -1377,6 +1379,12 @@ int main(int argc, char** argv)
 
        //initialize shadow/depth map texture
         CreateShadowMap();
+
+        //assign depth map to uniform variable for plane
+        glUseProgram(planeInfo.programID);
+        //get the shadow sampling texture
+        GLint samplerShadow = glGetUniformLocation(depthMap, "shadowTexture");
+        glUniform1i(samplerShadow, depthMap); //set to match the texture unit from glActiveTexture
 
        //initialize light position
        lightInfo.lightPosition = camera.GetPosition();
