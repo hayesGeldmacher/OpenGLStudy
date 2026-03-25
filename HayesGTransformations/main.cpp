@@ -345,42 +345,35 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &
 void OnDisplay() {
 
     //1. first render to depth map
-  //  glCullFace(GL_FRONT);
- //   glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-  //  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-  //  glClear(GL_DEPTH_BUFFER_BIT);
+      glCullFace(GL_FRONT);
+      glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+      glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+      glClear(GL_DEPTH_BUFFER_BIT);
 
-    //render both teapots and the plane to the depth buffer
-        //update object rotation
-  //  teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-  //  RenderMeshObject(teapotInfo, camera, teapotObject, false, true);
-    //RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
- //   RenderMeshObject(quadInfo, camera, quadObject, false, true);
- //   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-//    glCullFace(GL_BACK);
+     //render the plane once here to generate shadows
+
+        //render the shadowed plane
+      glUseProgram(planeInfo.programID);
+      glBindVertexArray(planeInfo.vao);
+      glBindTexture(GL_TEXTURE_2D, planeInfo.texIDDisplace);
+      GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
+      glUniform1f(uniformLocation, currentTessLevel);
+      SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
+      SetUniformAttributesLighting(planeInfo.programID, camera, depthDisplayObject);
+      glPatchParameteri(GL_PATCH_VERTICES, 3);
+      glDrawArrays(GL_PATCHES, 0, 6);
+
+ 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glCullFace(GL_BACK);
     
     //next render the scene like usual, using depth map as texture
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, depthMap);
+  
     //sets the camera target to teapot
     camera.SetTarget(depthDisplayObject.GetPosition());
-    //RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
-    //RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-   //  RenderMeshObject(quadInfoShadow, camera, quadObject, false, false, true);
-
-    //now try rendering the plane
-     //use the desired shader program
-   // glUseProgram(depthDisplayInfo.programID);
-   // glBindVertexArray(depthDisplayInfo.vao);
-   // SetUniformAttributesLighting(depthDisplayInfo.programID, camera, depthDisplayObject);
-   // SetUniformAttributesTransformations(depthDisplayInfo, depthDisplayObject, camera, false);
-   // glBindTexture(GL_TEXTURE_2D, depthDisplayInfo.texIDNormal);
-   // int max;
-    //glGetIntegerv(GL_MAX_PATCH_VERTICES, 3);
-  //  glPatchParameteri(GL_PATCH_VERTICES, 3);
-  //  glDrawArrays(GL_PATCHES, 0, 6);
 
         //render the wireframe
     if (displayWireFrame) {
@@ -397,11 +390,13 @@ void OnDisplay() {
         //render the shadowed plane
         glUseProgram(planeInfo.programID);
         glBindVertexArray(planeInfo.vao);
+
         glBindTexture(GL_TEXTURE_2D, planeInfo.texIDNormal);
         glBindTexture(GL_TEXTURE_2D, planeInfo.texIDDisplace);
         GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
         glUniform1f(uniformLocation, currentTessLevel);
         SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
+        SetUniformAttributesLighting(planeInfo.programID, camera, depthDisplayObject);
         glPatchParameteri(GL_PATCH_VERTICES, 3);
         glDrawArrays(GL_PATCHES, 0, 6);
 
@@ -1344,45 +1339,6 @@ int main(int argc, char** argv)
 
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
-
-       //compile teapot for shadow map
-    // CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
-    // CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
-        
-       //center teapot, set rot, pos, and scale
-     // InitializeObject(teapotMesh, teapotObject);
-
-       //compile teapot for actual rendering
-       //CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
-       //CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
-
-       //compile second teapot for shadow map
-       //CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
-       //CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
-
-       //compile  second teapot for actual rendering
-       //CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
-       //CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
-
-       //set second teapot scale and position in worldspace
-      // teapotObjectSecond.SetScale(1.0f);
-      // teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
-
-       //compile plane for shadow map
-      // CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
-       //CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false, false);
-
-       //compile plane for actual rendering
-       //CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
-      // CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false, true);
-
-       //set plane position, scale, and color for the scene
-     //  quadObject.SetScale(20.0f);
-     //  quadObject.SetPosition(0.0f, -15, 5.0f);
-     //  quadObject.SetRotation(90.0f, 0.0f, 0.0f);
-    //   quadObject.SetColor(0.1f, 1.0f, 0.6f);
-       //compile shaders for the wireframe plane with geometry shader
-
         //render the wireframe overlay
           wireframeInfo.renderGeometryShader = true;
           wireframeInfo.renderTessellationsShader = true;
@@ -1395,6 +1351,10 @@ int main(int argc, char** argv)
 
        CompileShadersWithGeo("TessellatedPlane.vert", "TessellatedPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfo.vao, planeInfo);
        CreatePlaneBuffers(planeInfo.vbo, depthDisplayObject, true, true, planeInfo);
+
+       //compile tessellated plane to generate shadow maps
+       CompileShadersWithGeo("TessellatedPlane.vert", "shadowedTessPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfoShadow.vao, planeInfoShadow);
+       CreatePlaneBuffers(planeInfoShadow.vbo, depthDisplayObject, false, true, planeInfoShadow);
 
        //compile testing display depth plane
       // CompileShaders("wireframePalne.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
@@ -1416,7 +1376,7 @@ int main(int argc, char** argv)
         cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
-      // CreateShadowMap();
+        CreateShadowMap();
 
        //initialize light position
        lightInfo.lightPosition = camera.GetPosition();

@@ -150,6 +150,7 @@
     <None Include="renderText.vert" />
     <None Include="shadowedPlane.frag" />
     <None Include="shadowedPlane.vert" />
+    <None Include="shadowedTessPlane.frag" />
     <None Include="shadowMap.frag" />
     <None Include="shadowMap.vert" />
     <None Include="tescControl.tesc" />

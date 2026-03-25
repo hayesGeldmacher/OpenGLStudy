@@ -71,6 +71,9 @@
     <None Include="TessellatedPlane.frag">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="shadowedTessPlane.frag">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WorldTransform.h">
