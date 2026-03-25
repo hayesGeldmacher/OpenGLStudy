@@ -20,6 +20,7 @@ struct ProgramInfo {
 	GLuint texIDSpec = 1;
 	//location of texture unit for normal texture
 	GLuint texIDNormal = 0;
+	GLuint texIDDisplace = 2;
 
 
 	//just for render-to-texture

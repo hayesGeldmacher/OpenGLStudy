@@ -148,7 +148,7 @@ glm::vec3 camUp(0.0f, 1.0f, 0.0f);
 //boolean, determines if you are rotating teapot object or the rendered plane
 bool rotatingPlane = false;
 
-bool displayWireFrame = true;
+bool displayWireFrame = false;
 
 //instace of camera class, generates view matrix
 Camera camera(camPos, camTarget, camUp);
@@ -210,7 +210,7 @@ glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 //tessellation levels:
 int minTessLevel = 1;
-int maxTessLevel = 20;
+int maxTessLevel = 80;
 int currentTessLevel = 5;
 
 
@@ -386,6 +386,7 @@ void OnDisplay() {
     if (displayWireFrame) {
             glUseProgram(wireframeInfo.programID);
             glBindVertexArray(wireframeInfo.vao);
+            glBindTexture(GL_TEXTURE_2D, wireframeInfo.texIDDisplace);
             GLuint uniformLocation = glGetUniformLocation(wireframeInfo.programID, "tessLevel");
             glUniform1f(uniformLocation, currentTessLevel);
             SetUniformAttributesTransformations(wireframeInfo, depthDisplayObject, camera, false);
@@ -396,6 +397,8 @@ void OnDisplay() {
         //render the shadowed plane
         glUseProgram(planeInfo.programID);
         glBindVertexArray(planeInfo.vao);
+        glBindTexture(GL_TEXTURE_2D, planeInfo.texIDNormal);
+        glBindTexture(GL_TEXTURE_2D, planeInfo.texIDDisplace);
         GLuint uniformLocation = glGetUniformLocation(planeInfo.programID, "tessLevel");
         glUniform1f(uniformLocation, currentTessLevel);
         SetUniformAttributesTransformations(planeInfo, depthDisplayObject, camera, false);
@@ -824,7 +827,7 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
 }
 
 //creates buffers specifically for the plane object, different logic than above function due to lack of mesh obj file
-void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object, bool createTextures) {
+void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object, bool createNormalTexture, bool createDisplaceTextures, ProgramInfo& programInfo) {
     
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
@@ -843,11 +846,16 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object, bool createTextures
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
 
-    if (createTextures) {
+    if (createNormalTexture) {
         std::string teapotTextureName = "teapotNormal.png";
-        const GLchar* uniformName = "normalMap";
+        const GLchar* uniformName = "normalTexture";
         //LoadNormalImage(teapotTextureName, quadInfoShadow, uniformName);
-        BindTexturesMTL(depthDisplayInfo, teapotTextureName, depthDisplayInfo.texIDNormal, uniformName);
+        BindTexturesMTL(programInfo, teapotTextureName, programInfo.texIDNormal, uniformName);
+    }
+    if (createDisplaceTextures) {
+        std::string textureName = "teapotDisplace.png";
+        const GLchar* uniformName = "displaceTexture";
+        BindTexturesMTL(programInfo, textureName, programInfo.texIDDisplace, uniformName);
     }
 }
 
@@ -1244,10 +1252,10 @@ void OnSpecialKeyPressed(int key, int x, int y) {
 
     if (key == GLUT_KEY_LEFT) {
 
-        ChangeTessLevel(true);
+        ChangeTessLevel(false);
     }
     else if (key == GLUT_KEY_RIGHT) {
-        ChangeTessLevel(false);
+        ChangeTessLevel(true);
     }
 
     //tell glut to re-render
@@ -1379,14 +1387,14 @@ int main(int argc, char** argv)
           wireframeInfo.renderGeometryShader = true;
           wireframeInfo.renderTessellationsShader = true;
           CompileShadersWithGeo("wireframePlane.vert", "wireframePlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", wireframeInfo.vao, wireframeInfo);
-          CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false);
+          CreatePlaneBuffers(wireframeInfo.vbo, depthDisplayObject, false, true, wireframeInfo);
 
        //render the actual shadowed plane
        planeInfo.renderGeometryShader = false;
        planeInfo.renderTessellationsShader = true;
 
        CompileShadersWithGeo("TessellatedPlane.vert", "TessellatedPlane.frag", "geoShader.geom", "tescControl.tesc", "tesEval.tese", planeInfo.vao, planeInfo);
-       CreatePlaneBuffers(planeInfo.vbo, depthDisplayObject, false);
+       CreatePlaneBuffers(planeInfo.vbo, depthDisplayObject, true, true, planeInfo);
 
        //compile testing display depth plane
       // CompileShaders("wireframePalne.vert", "shadowObject.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
