@@ -8,5 +8,5 @@ uniform sampler2D shadow;
 void main(){
 	
 	//this doesn't matter, just has to have a frag shader to compile
-	color = vec4(0.0f, 1.0f, 1.0f, 1.0f);
+	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 }

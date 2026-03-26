@@ -23,6 +23,8 @@ out vec2 fragTex;
 out vec4 fragPosLightSpace;
 out vec3 fragPos;
 
+//whether we should render in projected world space or light space
+uniform int renderFromLight;
 
 void main() {
 
@@ -59,11 +61,18 @@ void main() {
 
     vec4 finalPos = vec4(pos.x, verticalPos, pos.z, 1.0f);
 
-    gl_Position = projection * view * world * finalPos;
-
-
     //get fragPos lightspace
     fragPos = vec3(world * vec4(pos.xyz, 1.0f));
     fragPosLightSpace = lightMat * vec4(fragPos, 1.0f);
+
+
+    if(renderFromLight == 0){
+        gl_Position = projection * view * world * finalPos;
+    }
+    else{
+        gl_Position = lightMat * world * finalPos;
+    }
+
+
 
 }

@@ -17,9 +17,9 @@ struct ProgramInfo {
 	GLint projectionTransformLocation;
 	GLuint texIDDiffuse = 0;
 	//location of texture unit for specularity texture
-	GLuint texIDSpec = 1;
+	GLuint texIDSpec = 0;
 	//location of texture unit for normal texture
-	GLuint texIDNormal = 0;
+	GLuint texIDNormal = 1;
 	GLuint texIDDisplace = 2;
 
 

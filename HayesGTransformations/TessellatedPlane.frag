@@ -14,6 +14,10 @@ uniform sampler2D shadowTexture;
 //normal mapping
 uniform sampler2D normalTexture;
 
+//displacement mapping
+uniform sampler2D displaceTexture;
+
+
 
 //uniform lighting variables
 uniform vec3 objectColor;
@@ -25,6 +29,17 @@ uniform float specShine;
 uniform vec3 viewPos;
 uniform vec3 lightPosition;
 
+uniform float near_plane;
+uniform float far_plane;
+
+
+float LinearizeDepth(float depth)
+{
+    float z = depth * 2.0 - 1.0f;
+    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
+
+
+}
 
 //calculates how much shadow should be applied to current fragment
 float ShadowCalculation(vec4 fragPos){
@@ -33,7 +48,8 @@ float ShadowCalculation(vec4 fragPos){
 	vec3 projCoords = fragPos.xyz / fragPos.w;
 
 	projCoords = projCoords * 0.5 + 0.5;
-	float bias  = 0.00005f;
+	float bias  = 0.00005f;;
+
 
 	vec2 TexelSize = 1.0 / textureSize(shadowTexture, 0);
 	float shadowSum = 0.0f;
@@ -62,6 +78,7 @@ float ShadowCalculation(vec4 fragPos){
 
 
 }
+
 
 
 void main(){
@@ -97,14 +114,13 @@ void main(){
 
 	//apply shadow to the final coloring wiht lighting
 
+    float shadow = ShadowCalculation(fragPosLightSpace);
 
-	float shadow = ShadowCalculation(fragPosLightSpace);
+	vec3 lighting = (ambientFinal + shadow)) * (diffuse + specular);
+    color = vec4(lighting, 1.0f);
 
-	vec3 lighting = (ambientFinal + (shadow)) * (diffuse + specular);
-	//vec3 lighting = ambientFinal * (diffuse + specular);
-	color = vec4(lighting, 1.0f);
-
-//	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	//float depthValue = texture(shadowTexture, fragTex).r;
+    //color = vec4(vec3(LinearizeDepth(depthValue) / far_plane), 1.0f);
 
 	
 
