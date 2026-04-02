@@ -128,6 +128,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="GBuffer.cpp" />
     <ClCompile Include="LightInfo.cpp" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="main.cpp" />
@@ -141,6 +142,7 @@
     <None Include="cubeMap.vert" />
     <None Include="depthDisplay.frag" />
     <None Include="depthDisplay.vert" />
+    <None Include="GBuffer.frag" />
     <None Include="lightModel.frag" />
     <None Include="lightModel.vert" />
     <None Include="packages.config" />
@@ -160,6 +162,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ColorInfo.h" />
+    <ClInclude Include="GBuffer.h" />
     <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="LightInfo.h" />
     <ClInclude Include="Material.h" />

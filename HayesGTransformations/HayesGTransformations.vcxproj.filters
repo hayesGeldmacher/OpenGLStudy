@@ -36,6 +36,9 @@
     <ClCompile Include="Object.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -67,6 +70,7 @@
     <None Include="ambientObject.frag" />
     <None Include="screenPlane.vert" />
     <None Include="screenPlane.frag" />
+    <None Include="GBuffer.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -97,6 +101,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Object.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

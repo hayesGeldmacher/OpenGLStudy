@@ -103,6 +103,7 @@ ProgramInfo teapotSecondShadow;
 
 ProgramInfo screenPlaneInfo;
 
+ProgramInfo gBufferObjectInfo;
 
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
@@ -161,7 +162,7 @@ Camera camera(camPos, camTarget, camUp);
 //instance of plane-specific camera 
 Camera planeCamera(camPos, camTarget, camUp);
 
-bool renderScreenSpace = false;
+bool renderScreenSpace = true;
 
 
 //struct, generates perpective and orthographic matrices
@@ -345,25 +346,45 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, Object &object, 
 //called when GLUT draws something to screen
 void OnDisplay() {
 
-    //1. first render to depth map
-    /*
     
-    glCullFace(GL_FRONT);
-    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    
+    //first geometry pass - render data to gbuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    camera.SetTarget(teapotObject.GetPosition());
+    RenderMeshObject(teapotInfo, camera, teapotObject, false, false);
 
-    //render both teapots and the plane to the depth buffer
-        //update object rotation
-    teapotObject.SetRotation(angleInRadians, angleInRadians, angleInRadians);
-    RenderMeshObject(teapotInfo, camera, teapotObject, false, true);
-    RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, true);
-    RenderMeshObject(quadInfo, camera, quadObject, false, true);
+    //second pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glCullFace(GL_BACK);
-    
-    */
-    
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
+    glActiveTexture(gColorSpec);
+
+    //then send light uniforms, camera uniforms
+    //then we render the quad
+    if (renderScreenSpace) {
+
+        glUseProgram(screenPlaneInfo.programID);
+        glBindVertexArray(screenPlaneInfo.vao);
+        glDisable(GL_DEPTH_TEST);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+    //end of test deferred shading pass
+    glutSwapBuffers();
+    return;
+
+
+
+
+
+
+
+
+
     //next render the scene like usual, using depth map as texture
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -382,16 +403,7 @@ void OnDisplay() {
     cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
     RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
 
-    //render the screenspace plane
-     //use the desired shader program
-    if (renderScreenSpace) {
 
-        glUseProgram(screenPlaneInfo.programID);
-        glBindVertexArray(screenPlaneInfo.vao);
-        glDisable(GL_DEPTH_TEST);
-        //SetUniformAttributesTransformations(screenPlaneInfo, planeObject, camera, false);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-    }
     //swap buffers, end loop
     glutSwapBuffers();
 
@@ -620,11 +632,47 @@ void GenerateDeferredBuffers() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gColorSpec, 0);
 
+    //position is 0 buffer, normal is 1 buffer, color is 2
     // define which color attachments will be used for rendering;
+    unsigned int atttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+    glDrawBuffers(3, atttachments);
+
+    //then create and add render buffer object
+    glGenFramebuffers(1, &depthMapFBO);
+
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    //create the texture image as a depth component
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+        SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D,
+        GL_TEXTURE_COMPARE_MODE,
+        GL_COMPARE_REF_TO_TEXTURE);
+
+    glTexParameteri(GL_TEXTURE_2D,
+        GL_TEXTURE_COMPARE_FUNC,
+        GL_LEQUAL);
 
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
 
+    //after generating the depth map, attach it to the fbo
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+    glDrawBuffer(GL_NONE);
+    glDrawBuffer(GL_NONE);
+
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 //generates textures for given object
@@ -1140,26 +1188,26 @@ int main(int argc, char** argv)
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, teapotObject);
 
-       //compile teapot for actual rendering
-       CompileShaders("ambientObject.vert", "ambientObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
-       CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
+       //compile teapot for gBuffer
+       CompileShaders("ambientObject.vert", "gBuffer.frag", teapotInfo.vao, teapotInfo.programID);
+       CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
 
-       //compile  second teapot for actual rendering
-       CompileShaders("ambientObject.vert", "ambientObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
-       CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+       //compile  second teapot for gBuffer
+     //  CompileShaders("ambientObject.vert", "gBuffer.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
+      // CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
        //set second teapot scale and position in worldspace
-       teapotObjectSecond.SetScale(1.0f);
-       teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
+      // teapotObjectSecond.SetScale(1.0f);
+      // teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
        //compile plane for actual rendering
-       CompileShaders("ambientObject.vert", "ambientObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
-       CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
+      // CompileShaders("ambientObject.vert", "ambientObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
+      // CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
 
        //set plane position, scale, and color for the scene
-       quadObject.SetScale(200.0f);
-       quadObject.SetPosition(0.0f, -15.0f, 5.0f);
-       quadObject.SetColor(0.1f, 1.0f, 0.6f);
+       //quadObject.SetScale(200.0f);
+       //quadObject.SetPosition(0.0f, -15.0f, 5.0f);
+       //quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
        //compile testing display depth plane
        CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
@@ -1171,17 +1219,21 @@ int main(int argc, char** argv)
       
 
        //Compile shaders for the light model
-       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-       CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
+      // CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+    //   CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
 
        //set light model scale
-       cubeObject.scale = (0.3f);
+   //    cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
     //   CreateShadowMap();
 
+       //create gBuffers for deferrred shading 
+       GenerateDeferredBuffers();
+
+
        //initialize light position
-       lightInfo.lightPosition = camera.GetPosition();
+      // lightInfo.lightPosition = camera.GetPosition();
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);
