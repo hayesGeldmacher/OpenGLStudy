@@ -7,14 +7,14 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gColorSpec;
 
-//struct Light {
-	//vec3 Position;
-	//vec3 Color;
-//}
 
-//const int NR_LIGHTS = 32;
-//uniforrm Light lights[NR_LIGHTS];
-//uniform vec3 viewPos;
+
+//uniform lighting variables
+uniform vec3 lightColor;
+uniform float specShine;
+
+uniform vec3 viewPos;
+uniform vec3 lightPosition;
 
 
 void main()
@@ -25,19 +25,22 @@ void main()
 	vec3 albedo = texture(gColorSpec, vTex).rgb;
 	float specular = texture(gColorSpec, vTex).a;
 
-	//vec3 lighting =  albedo * 0.1f; //get a hard-coded value for ambient lighting
-	//vec3 viewDir = normalize(viewPos - fragPos);
-	//for(int i = 0; i < NR_LIGHTS; i++){
-	
-		/////get diffuse
-		//vec3 lightDir = noramlize(lights[i].Position - fragPos);
-		//vec3 diffuse = max(dot(normal, lightDir), 0.0f) * albedo * lights[i].Color;
-		//lighting += diffuse;
-	//}
+	vec3 lighting =  albedo * 0.1f; //get a hard-coded value for ambient lighting
+	vec3 viewDir = normalize(viewPos - fragPos);
+	vec3 lightDir = normalize(lightPosition - fragPos);
 
-	//color = vec4(lighting, 1.0f);
+	//so, something here is zeroing out
+	vec3 testRedColor = vec3(1.0f, 0.0f, 0.0f);
+    float diff = max(dot(normal, lightDir), 0.0);
+	vec3 diffuse = diff * testRedColor;
+	//vec3 diffuse = max(dot(normal, lightDir), 0.0f) * albedo * testRedColor;
+
+
+
+	lighting += diffuse;
+	color = vec4(lighting, 1.0f);
    
-   color = vec4(1.0f, 0.0f, 0.0f, 0.0f);
-   color = vec4(albedo, 1.0f);
+  // color = vec4(1.0f, 0.0f, 0.0f, 0.0f);
+  // color = vec4(normal, 1.0f);
 
 }  

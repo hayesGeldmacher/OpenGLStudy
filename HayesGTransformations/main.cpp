@@ -347,7 +347,7 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, Object &object, 
 void OnDisplay() {
 
     
-    
+    glEnable(GL_DEPTH_TEST);
     //first geometry pass - render data to gbuffer
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
@@ -358,21 +358,50 @@ void OnDisplay() {
     //second pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gPosition);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, gNormal);
-    glActiveTexture(gColorSpec);
 
-    //then send light uniforms, camera uniforms
-    //then we render the quad
-    if (renderScreenSpace) {
+     glUseProgram(screenPlaneInfo.programID);
+    //set uniform attributes
+    GLint uniformLocation;
 
-        glUseProgram(screenPlaneInfo.programID);
-        glBindVertexArray(screenPlaneInfo.vao);
-        glDisable(GL_DEPTH_TEST);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-    }
+    //update the uniform light color in the frag shader
+    glm::vec3 lightColor = lightInfo.lightColor;
+    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "lightColor");
+    glUniform3f(uniformLocation, lightColor.x, lightColor.y, lightColor.z);
+
+    //update uniform specular shininess exponent in the frag shader
+    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "specShine");
+    glUniform1f(uniformLocation, lightInfo.shine);
+
+    glm::vec3 lightPosition = lightInfo.lightPosition;
+    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "lightPosition");
+    glUniform3f(uniformLocation, lightPosition.x, lightPosition.y, lightPosition.z);
+
+    glm::vec3 viewPos = camera.GetPosition();
+    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "viewPos");
+    glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
+
+     glActiveTexture(GL_TEXTURE0);
+     glBindTexture(GL_TEXTURE_2D, gPosition);
+     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gPosition"), 0);
+
+     glActiveTexture(GL_TEXTURE1);
+     glBindTexture(GL_TEXTURE_2D, gColorSpec);
+     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gColorSpec"), 1);
+
+     glActiveTexture(GL_TEXTURE2);
+     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gNormal"), 2);
+     glBindTexture(GL_TEXTURE_2D, gNormal);
+
+     glBindVertexArray(screenPlaneInfo.vao);
+     glDisable(GL_DEPTH_TEST);
+
+     if(renderScreenSpace){ glDrawArrays(GL_TRIANGLES, 0, 6); }
+
+     glActiveTexture(GL_TEXTURE0);
+     glm::vec3 lightPos = lightInfo.lightPosition;
+     cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+     RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+
     //end of test deferred shading pass
     glutSwapBuffers();
     return;
@@ -397,11 +426,12 @@ void OnDisplay() {
     RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
     RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
 
-
+    //glEnable(GL_DEPTH_TEST);
     //render the light model object
-   glm::vec3 lightPos = lightInfo.lightPosition;
-    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
-    RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+    // glActiveTexture(GL_TEXTURE0);
+     // glm::vec3 lightPos = lightInfo.lightPosition;
+     // cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    //RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
 
 
     //swap buffers, end loop
@@ -637,40 +667,20 @@ void GenerateDeferredBuffers() {
     unsigned int atttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
     glDrawBuffers(3, atttachments);
 
-    //then create and add render buffer object
-    glGenFramebuffers(1, &depthMapFBO);
-
+    //generate depth map
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
-    //create the texture image as a depth component
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-        SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-
-    glTexParameteri(GL_TEXTURE_2D,
-        GL_TEXTURE_COMPARE_MODE,
-        GL_COMPARE_REF_TO_TEXTURE);
-
-    glTexParameteri(GL_TEXTURE_2D,
-        GL_TEXTURE_COMPARE_FUNC,
-        GL_LEQUAL);
-
-
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-
-
-    //after generating the depth map, attach it to the fbo
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
-    glDrawBuffer(GL_NONE);
-    glDrawBuffer(GL_NONE);
 
     glGenerateMipmap(GL_TEXTURE_2D);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "warning! gbuffer did not finish compiling!" << std::endl;
+    }
+
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -1219,11 +1229,11 @@ int main(int argc, char** argv)
       
 
        //Compile shaders for the light model
-      // CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-    //   CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
+        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+        CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
 
        //set light model scale
-   //    cubeObject.scale = (0.3f);
+        cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
     //   CreateShadowMap();
@@ -1233,7 +1243,7 @@ int main(int argc, char** argv)
 
 
        //initialize light position
-      // lightInfo.lightPosition = camera.GetPosition();
+        lightInfo.lightPosition = camera.GetPosition();
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);

@@ -18,7 +18,6 @@ void main()
 	//store position of the fragment in the first gBuffer texture
 	gPosition = fragPos;
 
-	//store noramls into gBuffer
 	gNormal = normalize(vNormal);
 
 	//store diffuse color
