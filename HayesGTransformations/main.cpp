@@ -226,11 +226,6 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera, Object &objec
 
     GLint uniformLocation;
 
-    //update the uniform color variable in frag shader
-    glm::vec3 objectColor = object.GetColor();
-    uniformLocation = glGetUniformLocation(program, "objectColor");
-    glUniform3f(uniformLocation, objectColor.x, objectColor.y, objectColor.z);
-
     //update the uniform ambient strength in the frag shader
     uniformLocation = glGetUniformLocation(program, "ambientStrength");
     glUniform1f(uniformLocation, lightInfo.ambientStrength);
@@ -239,10 +234,6 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera, Object &objec
     glm::vec3 lightColor = lightInfo.lightColor;
     uniformLocation = glGetUniformLocation(program, "lightColor");
     glUniform3f(uniformLocation, lightColor.x, lightColor.y, lightColor.z);
-
-    //update uniform specular shininess exponent in the frag shader
-    uniformLocation = glGetUniformLocation(program, "specShine");
-    glUniform1f(uniformLocation, lightInfo.shine);
 
     glm::vec3 lightPosition = lightInfo.lightPosition;
     uniformLocation = glGetUniformLocation(program, "lightPosition");
@@ -327,11 +318,18 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, Object &object, 
         //send the world transform variable
         uniformLocation = glGetUniformLocation(programInfo.programID, "world");
         glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
+
+        uniformLocation = glGetUniformLocation(programInfo.programID, "specShine");
+        glUniform1f(uniformLocation, lightInfo.shine);
+
+        glm::vec3 objectColor = object.GetColor();
+        uniformLocation = glGetUniformLocation(programInfo.programID, "objectColor");
+        glUniform3f(uniformLocation, objectColor.x, objectColor.y, objectColor.z);
  
         //if not just for depth map, assign general uniform attributes
-    if(!useLight){
-
         SetUniformAttributesTransformations(programInfo, object, camera, false);
+
+    if(useLight){
         //set uniform lighting atttributes
         SetUniformAttributesLighting(programInfo.programID, camera, object);
     }
@@ -343,23 +341,8 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, Object &object, 
     glDrawArrays(GL_TRIANGLES, 0, object.facesNumber);
 }
 
-//called when GLUT draws something to screen
-void OnDisplay() {
-
+void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
     
-    glEnable(GL_DEPTH_TEST);
-    //first geometry pass - render data to gbuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    camera.SetTarget(teapotObject.GetPosition());
-    RenderMeshObject(teapotInfo, camera, teapotObject, false, false);
-
-    //second pass: use g-buffer to calculate scene lighting
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-     glUseProgram(screenPlaneInfo.programID);
     //set uniform attributes
     GLint uniformLocation;
 
@@ -380,31 +363,56 @@ void OnDisplay() {
     uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "viewPos");
     glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
 
-     glActiveTexture(GL_TEXTURE0);
-     glBindTexture(GL_TEXTURE_2D, gPosition);
-     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gPosition"), 0);
+}
 
-     glActiveTexture(GL_TEXTURE1);
-     glBindTexture(GL_TEXTURE_2D, gColorSpec);
-     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gColorSpec"), 1);
+void RenderScreenSpacePlane() {
+    glUseProgram(screenPlaneInfo.programID);
+    SetDeferredLighting(screenPlaneInfo, camera);
 
-     glActiveTexture(GL_TEXTURE2);
-     glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gNormal"), 2);
-     glBindTexture(GL_TEXTURE_2D, gNormal);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gPosition"), 0);
 
-     glBindVertexArray(screenPlaneInfo.vao);
-     glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gColorSpec);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gColorSpec"), 1);
 
-     if(renderScreenSpace){ glDrawArrays(GL_TRIANGLES, 0, 6); }
+    glActiveTexture(GL_TEXTURE2);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gNormal"), 2);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
 
-     glActiveTexture(GL_TEXTURE0);
-     glm::vec3 lightPos = lightInfo.lightPosition;
-     cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
-     RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+    glBindVertexArray(screenPlaneInfo.vao);
+    glDisable(GL_DEPTH_TEST);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+//called when GLUT draws something to screen
+void OnDisplay() {
 
+    
+    glEnable(GL_DEPTH_TEST);
+    //first geometry pass - render data to gbuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    camera.SetTarget(teapotObject.GetPosition());
+    RenderMeshObject(teapotInfo, camera, teapotObject, false, false);
+    RenderMeshObject(teapotSecondInfo, camera, teapotObjectSecond, false, false);
+    RenderMeshObject(quadInfo, camera, quadObject, false, false);
+   
+    glm::vec3 lightPos = lightInfo.lightPosition;
+    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
+
+    //second pass: use g-buffer to calculate scene lighting
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (renderScreenSpace) { RenderScreenSpacePlane(); }
+    
     //end of test deferred shading pass
     glutSwapBuffers();
     return;
+
+
 
 
 
@@ -657,7 +665,7 @@ void GenerateDeferredBuffers() {
     // setting up specular and color buffer
     glGenTextures(1, &gColorSpec);
     glBindTexture(GL_TEXTURE_2D, gColorSpec);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gColorSpec, 0);
@@ -1201,23 +1209,23 @@ int main(int argc, char** argv)
        //compile teapot for gBuffer
        CompileShaders("ambientObject.vert", "gBuffer.frag", teapotInfo.vao, teapotInfo.programID);
        CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
-
+ 
        //compile  second teapot for gBuffer
-     //  CompileShaders("ambientObject.vert", "gBuffer.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
-      // CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
+         CompileShaders("ambientObject.vert", "gBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
+         CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
        //set second teapot scale and position in worldspace
-      // teapotObjectSecond.SetScale(1.0f);
-      // teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
+        teapotObjectSecond.SetScale(0.65f);
+        teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
        //compile plane for actual rendering
-      // CompileShaders("ambientObject.vert", "ambientObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
-      // CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
+        CompileShaders("ambientObject.vert", "gBuffer.frag", quadInfo.vao, quadInfo.programID);
+        CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false);
 
        //set plane position, scale, and color for the scene
-       //quadObject.SetScale(200.0f);
-       //quadObject.SetPosition(0.0f, -15.0f, 5.0f);
-       //quadObject.SetColor(0.1f, 1.0f, 0.6f);
+        quadObject.SetScale(200.0f);
+        quadObject.SetPosition(0.0f, -15.0f, 5.0f);
+        quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
        //compile testing display depth plane
        CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
@@ -1229,8 +1237,8 @@ int main(int argc, char** argv)
       
 
        //Compile shaders for the light model
-        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-        CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
+       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+       CreateBuffers(lightModelInfo.vbo, cubeObject, lightMesh, false, false, false);
 
        //set light model scale
         cubeObject.scale = (0.3f);

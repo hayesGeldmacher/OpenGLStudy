@@ -25,6 +25,4 @@ void main()
 
 	//store spec intensity
 	gColorSpec.a = specShine;
-
-
 }  

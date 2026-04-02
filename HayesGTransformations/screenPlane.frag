@@ -7,14 +7,12 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gColorSpec;
 
-
-
 //uniform lighting variables
 uniform vec3 lightColor;
-uniform float specShine;
 
 uniform vec3 viewPos;
 uniform vec3 lightPosition;
+
 
 
 void main()
@@ -29,18 +27,23 @@ void main()
 	vec3 viewDir = normalize(viewPos - fragPos);
 	vec3 lightDir = normalize(lightPosition - fragPos);
 
-	//so, something here is zeroing out
 	vec3 testRedColor = vec3(1.0f, 0.0f, 0.0f);
     float diff = max(dot(normal, lightDir), 0.0);
-	vec3 diffuse = diff * testRedColor;
-	//vec3 diffuse = max(dot(normal, lightDir), 0.0f) * albedo * testRedColor;
+	vec3 diffuse = diff * albedo * lightColor;
 
+    //get reflections for phong shading
+	vec3 halfwayDir = normalize(lightDir + viewDir);
+	vec3 reflectDir = reflect(-lightDir, normal);
 
+	//get specular
+    float spec = pow(max(dot(normal, reflectDir), 0.0f), specular);
+    float specularStrength = 0.5f;
+    vec3 specularLight = specularStrength * spec * lightColor;
 
 	lighting += diffuse;
+	lighting += specularLight;
 	color = vec4(lighting, 1.0f);
-   
-  // color = vec4(1.0f, 0.0f, 0.0f, 0.0f);
-  // color = vec4(normal, 1.0f);
+
+
 
 }  

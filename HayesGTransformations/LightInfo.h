@@ -48,7 +48,7 @@ public:
 
 	//color-related fields
 	float ambientStrength = 0.1f;
-	glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	glm::vec3 lightColor = glm::vec3(1.0f, 0.0f, 0.0f);
 	glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 	//specular shine fields
