@@ -12,7 +12,7 @@ struct ProgramInfo {
 	GLuint vbo;
 	GLuint vao;
 	GLint matLocation = 1;
-	GLint worldTransformLocation;
+	GLint ObjectLocation;
 	GLint viewTranformLocation;
 	GLint projectionTransformLocation;
 	GLuint texIDDiffuse = 0;

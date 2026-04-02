@@ -131,9 +131,12 @@
     <ClCompile Include="LightInfo.cpp" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="WorldTransform.cpp" />
+    <ClCompile Include="Material.cpp" />
+    <ClCompile Include="Object.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ambientObject.frag" />
+    <None Include="ambientObject.vert" />
     <None Include="cubeMap.frag" />
     <None Include="cubeMap.vert" />
     <None Include="depthDisplay.frag" />
@@ -147,6 +150,8 @@
     <None Include="renderedReflections.vert" />
     <None Include="renderText.frag" />
     <None Include="renderText.vert" />
+    <None Include="screenPlane.frag" />
+    <None Include="screenPlane.vert" />
     <None Include="shadowedPlane.frag" />
     <None Include="shadowedPlane.vert" />
     <None Include="shadowMap.frag" />
@@ -158,11 +163,11 @@
     <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="LightInfo.h" />
     <ClInclude Include="Material.h" />
+    <ClInclude Include="Object.h" />
     <ClInclude Include="ProgramInfo.h" />
     <ClInclude Include="ProjectionInfo.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Vertex.h" />
-    <ClInclude Include="WorldTransform.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="shadowedPlane.txt" />

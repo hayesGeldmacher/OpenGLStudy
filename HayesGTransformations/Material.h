@@ -2,10 +2,13 @@
 #include <glm/glm.hpp>
 
 struct Material {
-	glm::vec3 ambient;
+
+	//diffuse color
 	glm::vec3 diffuse;
-	glm::vec3 specular;
-	glm::vec3 shininess;
+
+	//specularity power
+	float specular;
+
 };
 
 

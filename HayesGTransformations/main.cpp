@@ -22,12 +22,13 @@
 #include "cyGL.h"
 //Custom include files
 #include "Vertex.h"
-#include "WorldTransform.h"
 #include "Camera.h"
 #include "LightInfo.h"
 #include "ProgramInfo.h"
 #include "ColorInfo.h"
 #include "ImageLoader.h"
+#include "Object.h"
+#include "Material.h"
 //Hayes Geldmacher - 3/3/26
 //CS 6610 - Project 7: shadow mapping
 
@@ -100,6 +101,9 @@ ProgramInfo teapotSecondInfo;
 //program info for second teapot second pass using shadow map
 ProgramInfo teapotSecondShadow;
 
+ProgramInfo screenPlaneInfo;
+
+
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
 
@@ -125,20 +129,24 @@ float previousTime = 0;
 float animateSpeed = 0.05f;
 
 //instance of world object transform class for the render plane
-WorldTransform planeObject;
+Object planeObject;
 
 //test plane for checking if the depth map was displayed correctly
-WorldTransform depthDisplayObject;
+Object depthDisplayObject;
 
+
+Material redMaterial;
+Material blueMaterial;
+Material whiteMaterial;
 
 //instance of world object transform class, generates transformation matrix
-WorldTransform teapotObject("teapotReflection.obj");
+Object teapotObject("teapotReflection.obj");
 
-WorldTransform teapotObjectSecond("teapotReflection.obj");
+Object teapotObjectSecond("teapotReflection.obj");
 
-WorldTransform quadObject("PlaneMesh.obj");
+Object quadObject("PlaneMesh.obj");
 
-WorldTransform cubeObject("cube.obj");
+Object cubeObject("cube.obj");
 
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
@@ -204,8 +212,13 @@ Color green(0.2, false, true);
 Color* colors[] = { &red, &blue, &green };
 glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
+//deferred shading fields
+unsigned int gBuffer;
+unsigned int gPosition, gNormal, gColorSpec;
+
+
 //called during onDisplay, sets all uniform shader variables
-void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransform &object) {
+void SetUniformAttributesLighting(GLuint &program, Camera &camera, Object &object) {
 
     GLint uniformLocation;
 
@@ -242,7 +255,7 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera, WorldTransfor
 }
 
 //sets MVP-related uniform variables
-void SetUniformAttributesTransformations(ProgramInfo &programInfo, WorldTransform &object, Camera &camera, bool flipped) {
+void SetUniformAttributesTransformations(ProgramInfo &programInfo, Object &object, Camera &camera, bool flipped) {
     
     //generate view matrix from camera
 
@@ -293,7 +306,7 @@ glm::mat4 GetLightMatrix() {
 }
 
 //renders mesh objects from start to finish
-void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &object, bool useTextures, bool useLight) {
+void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, Object &object, bool useTextures, bool useLight) {
     
     //use the desired shader program
     glUseProgram(programInfo.programID);
@@ -330,6 +343,8 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, WorldTransform &
 void OnDisplay() {
 
     //1. first render to depth map
+    /*
+    
     glCullFace(GL_FRONT);
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
@@ -344,9 +359,12 @@ void OnDisplay() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glCullFace(GL_BACK);
     
+    */
+    
     //next render the scene like usual, using depth map as texture
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     //sets the camera target to teapot
@@ -354,6 +372,14 @@ void OnDisplay() {
     RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
     RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
     RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
+
+    //render the screenspace plane
+     //use the desired shader program
+    glDisable(GL_DEPTH_TEST);
+    glUseProgram(screenPlaneInfo.programID);
+    glBindVertexArray(screenPlaneInfo.vao);
+    SetUniformAttributesTransformations(screenPlaneInfo, planeObject, camera, false);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     //render the light model object
     glm::vec3 lightPos = lightInfo.lightPosition;
@@ -425,7 +451,7 @@ cy::TriMesh LoadObjectFile(const char* fileName) {
 }
 
 //centers the object, sets initial pos, rot, and scale
-void InitializeObject(cy::TriMesh &mesh, WorldTransform &object) {
+void InitializeObject(cy::TriMesh &mesh, Object &object) {
     //compute the bounding box to center the object in local space
     mesh.ComputeBoundingBox();
     cy::Vec3f boundMin = mesh.GetBoundMin();
@@ -557,6 +583,44 @@ bool RenderToTexture() {
     return true;
 }
 
+
+void GenerateDeferredBuffers() {
+
+    //generate and bind the gbuffers
+    glGenFramebuffers(1, &gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
+    // setting up position color buffer
+    glGenTextures(1, &gPosition);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL); //creating the texture space
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //setting nearest neighbor filtering for minification
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // setting nearest neighbor filtering for magnification
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
+
+    // setting up normal color buffer
+    glGenTextures(1, &gNormal);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
+
+    // setting up specular and color buffer
+    glGenTextures(1, &gColorSpec);
+    glBindTexture(GL_TEXTURE_2D, gColorSpec);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gColorSpec, 0);
+
+    // define which color attachments will be used for rendering;
+
+
+
+
+}
+
 //generates textures for given object
 void GenerateTextures(cy::TriMesh &mesh, bool spec) {
 
@@ -650,7 +714,7 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
 }
 
 //creates buffer for vertex pos and normal info, sets related attributes
-void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool hasNormals, bool hasTexCoords, bool generateTextures) {
+void CreateBuffers(GLuint &vbo, Object &object, cy::TriMesh &mesh, bool hasNormals, bool hasTexCoords, bool generateTextures) {
     
 
     mesh = LoadObjectFile(object.objectFileName);
@@ -724,7 +788,7 @@ void CreateBuffers(GLuint &vbo, WorldTransform &object, cy::TriMesh &mesh, bool 
 }
 
 //creates buffers specifically for the plane object, different logic than above function due to lack of mesh obj file
-void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
+void CreatePlaneBuffers(GLuint &vbo, Object &object) {
     
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
@@ -742,6 +806,35 @@ void CreatePlaneBuffers(GLuint &vbo, WorldTransform &object) {
     //interpret tex coords data
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
+}
+
+//creates buffers for 2D screenspace plane
+void CreateScreenPlaneBuffers(GLuint& vbo) {
+ 
+    float quadVertices[24] = {
+        //positions //texCoords
+        -1.0f,  1.0f, 0.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f,
+         1.0f, -1.0f, 1.0f, 0.0f,
+
+        -1.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, -1.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 1.0f, 1.0f
+    };
+
+    
+    //create buffer for holding mesh vertex data
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, 24 * sizeof(float), &quadVertices[0], GL_STATIC_DRAW);
+
+    //interpet position data
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)0);
+
+    //interpret tex coords data
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 2));
 }
 
 //compiles shaders with given program and file information
@@ -1035,35 +1128,23 @@ int main(int argc, char** argv)
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
 
-       //compile teapot for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotInfo.vao, teapotInfo.programID);
-       CreateBuffers(teapotInfo.vbo, teapotObject, teapotMesh, true, true, false);
-        
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, teapotObject);
 
        //compile teapot for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
+       CompileShaders("ambientObject.vert", "ambientObject.frag", teapotInfoShadow.vao, teapotInfoShadow.programID);
        CreateBuffers(teapotInfoShadow.vbo, teapotObject, teapotMesh, true, true, false);
 
-       //compile second teapot for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
-       CreateBuffers(teapotSecondInfo.vbo, teapotObjectSecond, teapotMesh, true, true, false);
-
        //compile  second teapot for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
+       CompileShaders("ambientObject.vert", "ambientObject.frag", teapotSecondShadow.vao, teapotSecondShadow.programID);
        CreateBuffers(teapotSecondShadow.vbo, teapotObjectSecond, teapotMesh, true, true, false);
 
        //set second teapot scale and position in worldspace
        teapotObjectSecond.SetScale(1.0f);
        teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
-       //compile plane for shadow map
-       CompileShaders("shadowMap.vert", "shadowMap.frag", quadInfo.vao, quadInfo.programID);
-       CreateBuffers(quadInfo.vbo, quadObject, quadMesh, true, true, false);
-
        //compile plane for actual rendering
-       CompileShaders("shadowObject.vert", "shadowObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
+       CompileShaders("ambientObject.vert", "ambientObject.frag", quadInfoShadow.vao, quadInfoShadow.programID);
        CreateBuffers(quadInfoShadow.vbo, quadObject, quadMesh, true, true, false);
 
        //set plane position, scale, and color for the scene
@@ -1072,8 +1153,9 @@ int main(int argc, char** argv)
        quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
        //compile testing display depth plane
-       CompileShaders("depthDisplay.vert", "depthDisplay.frag", depthDisplayInfo.vao, depthDisplayInfo.programID);
-       CreatePlaneBuffers(depthDisplayInfo.vbo, depthDisplayObject);
+       CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+      CreatePlaneBuffers(screenPlaneInfo.vbo, planeObject);
+   //   planeObject.SetScale(10.0f, )
 
        //Compile shaders for the light model
        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
