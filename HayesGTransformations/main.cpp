@@ -161,6 +161,9 @@ Camera camera(camPos, camTarget, camUp);
 //instance of plane-specific camera 
 Camera planeCamera(camPos, camTarget, camUp);
 
+bool renderScreenSpace = false;
+
+
 //struct, generates perpective and orthographic matrices
 struct persProj {
     glm::mat4 GetProjection() {
@@ -373,19 +376,22 @@ void OnDisplay() {
     RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
     RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
 
-    //render the screenspace plane
-     //use the desired shader program
-    glDisable(GL_DEPTH_TEST);
-    glUseProgram(screenPlaneInfo.programID);
-    glBindVertexArray(screenPlaneInfo.vao);
-    SetUniformAttributesTransformations(screenPlaneInfo, planeObject, camera, false);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     //render the light model object
-    glm::vec3 lightPos = lightInfo.lightPosition;
+   glm::vec3 lightPos = lightInfo.lightPosition;
     cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
     RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
 
+    //render the screenspace plane
+     //use the desired shader program
+    if (renderScreenSpace) {
+
+        glUseProgram(screenPlaneInfo.programID);
+        glBindVertexArray(screenPlaneInfo.vao);
+        glDisable(GL_DEPTH_TEST);
+        //SetUniformAttributesTransformations(screenPlaneInfo, planeObject, camera, false);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
     //swap buffers, end loop
     glutSwapBuffers();
 
@@ -830,11 +836,11 @@ void CreateScreenPlaneBuffers(GLuint& vbo) {
 
     //interpet position data
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (GLvoid*)0);
 
     //interpret tex coords data
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 2));
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (GLvoid*)(sizeof(float) * 2));
 }
 
 //compiles shaders with given program and file information
@@ -1013,6 +1019,9 @@ void OnKeyPressed(unsigned char key, int x, int y) {
         //toggle object idle rotation
         teapotObject.ToggleRotating();
     }
+    else if (key == 'u') {
+        renderScreenSpace = !renderScreenSpace;
+    }
 }
 
 void OnSpecialKeyPressed(int key, int x, int y) {
@@ -1154,8 +1163,12 @@ int main(int argc, char** argv)
 
        //compile testing display depth plane
        CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
-      CreatePlaneBuffers(screenPlaneInfo.vbo, planeObject);
-   //   planeObject.SetScale(10.0f, )
+       //CreatePlaneBuffers(screenPlaneInfo.vbo, planeObject);
+       CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
+       planeObject.SetScale(20.0f);
+       planeObject.Rotate(90.0f, 0.0f, 0.0f);
+
+      
 
        //Compile shaders for the light model
        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
@@ -1165,7 +1178,7 @@ int main(int argc, char** argv)
        cubeObject.scale = (0.3f);
 
        //initialize shadow/depth map texture
-       CreateShadowMap();
+    //   CreateShadowMap();
 
        //initialize light position
        lightInfo.lightPosition = camera.GetPosition();
