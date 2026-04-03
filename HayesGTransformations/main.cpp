@@ -16,6 +16,7 @@
 #include <string>
 #include <sstream>
 #include <iterator>
+#include <random>
 //cem yuksul libraries
 #include "cyCore.h"
 #include "cyTriMesh.h"
@@ -171,6 +172,9 @@ std::vector<ProgramInfo*> drawObjects;
 //whether to render the screenspace quad for deferred rendering
 bool renderScreenSpace = true;
 
+//whether to render ambient occlusion
+bool renderAO = true;
+
 //struct, generates perpective and orthographic matrices
 struct persProj {
     glm::mat4 GetProjection() {
@@ -212,6 +216,9 @@ static persProj lightProjection;
 
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
+
+unsigned int AOFBO; //frame buffer objects for ssao buffer
+unsigned int AOColorBuffer;
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -604,6 +611,65 @@ bool RenderToTexture() {
     return true;
 }
 
+float Lerp(float a, float b, float f) {
+    return a + f * (b - a);
+}
+
+//creates the hemisphere kernal for sampling points around AO frag
+void CreateKernal() {
+
+    //create sample kernal of points in hemisphere oriented along z tanget vector
+    std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f); //creates random floats between 0 and 1
+    std::default_random_engine randGenerator; //declare instance of random num generator
+    std::vector<glm::vec3> kernel;
+    for (unsigned int i = 0; i < 64; ++i) {
+        glm::vec3 sample(
+            randomFloats(randGenerator) * 2.0f - 1.0f,
+            randomFloats(randGenerator) * 2.0f - 1.0f,
+            randomFloats(randGenerator)//dont offset z, would create sphere instead of hemisphere
+        );
+
+        //weigh points more heavily as they are closer to the center fragmnent
+        float size = (float)i / 64.0;
+        size = Lerp(0.1f, 1.0f, size * size);
+        sample *= size;
+        kernel.push_back(sample);
+    }
+
+    //create random rotation noise data
+    std::vector<glm::vec3> AONoise;
+    for (unsigned int i = 0; i < 16; i++) {
+        glm::vec3 noise(
+            randomFloats(randGenerator) * 2.0f - 1.0f,
+            randomFloats(randGenerator) * 2.0f - 1.0f,
+            0.0f); //leave z at zero to rotate around z axis
+        AONoise.push_back(noise);
+    }
+
+    //create tiling 4x4 noise texture to overlay on the screen
+    unsigned int noiseTexture;
+    glGenTextures(1, &noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    //fill texture with noise data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT, &AONoise[0]);
+}
+
+//creats the SSAO frame buffer object with color attachments
+void GenerateSSAOBuffer() {
+    
+    glGenFramebuffers(1, &AOFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+
+    glGenTextures(1, &AOColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
+    //set to red because AO is greyscale component, only need the one color channel
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBuffer, 0);
+}
+
 //generates color and depth attachments for deferred rendering gbuffer
 void GenerateDeferredBuffers() {
 
@@ -617,6 +683,9 @@ void GenerateDeferredBuffers() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL); //creating the texture space
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //setting nearest neighbor filtering for minification
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // setting nearest neighbor filtering for magnification
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); //clamps so we dont oversample
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
 
     // setting up normal color buffer
@@ -1166,12 +1235,12 @@ int main(int argc, char** argv)
        InitializeObject(teapotMesh, *teapotInfo.object);
 
        //compile teapot for gBuffer
-       CompileShaders("ambientObject.vert", "gBuffer.frag", teapotInfo.vao, teapotInfo.programID);
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotInfo.vao, teapotInfo.programID);
        CreateBuffers(teapotInfo, teapotMesh);
        drawObjects.push_back(&teapotInfo);
  
        //compile  second teapot for gBuffer
-         CompileShaders("ambientObject.vert", "gBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
+         CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
          CreateBuffers(teapotSecondInfo, teapotMesh);
          drawObjects.push_back(&teapotSecondInfo);
 
@@ -1180,7 +1249,7 @@ int main(int argc, char** argv)
         teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
        //compile plane for actual rendering
-        CompileShaders("ambientObject.vert", "gBuffer.frag", quadInfo.vao, quadInfo.programID);
+        CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
         CreateBuffers(quadInfo, quadMesh);
         drawObjects.push_back(&quadInfo);
        //set plane position, scale, and color for the scene
@@ -1189,7 +1258,7 @@ int main(int argc, char** argv)
         quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
         //compile plane for actual rendering
-        CompileShaders("ambientObject.vert", "gBuffer.frag", wallInfo.vao, wallInfo.programID);
+        CompileShaders("ambientObject.vert", "AOBuffer.frag", wallInfo.vao, wallInfo.programID);
         CreateBuffers(wallInfo, quadMesh);
         drawObjects.push_back(&wallInfo);
         //set wall position, scale, and color
@@ -1199,7 +1268,7 @@ int main(int argc, char** argv)
         wallObject.SetColor(0.1f, 0.6f, 0.8f);
 
        //compile render plane
-       CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+       CompileShaders("screenPlane.vert", "AOQUad.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
        planeObject.SetScale(20.0f);
        planeObject.Rotate(90.0f, 0.0f, 0.0f);

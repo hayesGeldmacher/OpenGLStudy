@@ -71,6 +71,10 @@
     <None Include="screenPlane.vert" />
     <None Include="screenPlane.frag" />
     <None Include="GBuffer.frag" />
+    <None Include="AOBuffer.frag">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="AOQuad.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
