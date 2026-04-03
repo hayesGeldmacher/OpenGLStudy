@@ -71,12 +71,13 @@ ProgramInfo teapotInfo(&teapotObject);
 
 Object teapotObjectSecond("teapotReflection.obj");
 ProgramInfo teapotSecondInfo(&teapotObjectSecond);
+//teapot mesh being loaded in
+cy::TriMesh teapotMesh;
 
 Object quadObject("PlaneMesh.obj");
 ProgramInfo quadInfo(&quadObject);
 //mesh used to load plane
 cy::TriMesh quadMesh;
-
 
 //program  info for the model displaying the light
 Object cubeObject("cube.obj");
@@ -92,9 +93,6 @@ unsigned int depthMapFBO;
 const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 //the texture for the shadows
 unsigned int depthMap;
-
-//teapot mesh being loaded in
-cy::TriMesh teapotMesh;
 
 
 
@@ -405,9 +403,14 @@ void OnDisplay() {
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    camera.SetTarget(teapotInfo.object->GetPosition());
-  
+
+    camera.SetTarget(teapotInfo.object->GetPosition()); // set camera target
     
+    //set position of the light cube
+    glm::vec3 lightPos = lightInfo.lightPosition;
+    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+  
+    //draw all objects to the screen
     for (ProgramInfo* program : drawObjects) {
         RenderMeshObject(*program, camera, false, false);
     }
@@ -419,35 +422,6 @@ void OnDisplay() {
     
     //end of test deferred shading pass
     glutSwapBuffers();
-    return;
-
-
-    /*
-    //next render the scene like usual, using depth map as texture
-    glViewport(0, 0, width, height);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    //sets the camera target to teapot
-    camera.SetTarget(teapotObject.GetPosition());
-    RenderMeshObject(teapotInfoShadow, camera, teapotObject, false, false);
-    RenderMeshObject(teapotSecondShadow, camera, teapotObjectSecond, false, false);
-    RenderMeshObject(quadInfoShadow, camera, quadObject, false, false);
-
-    //glEnable(GL_DEPTH_TEST);
-    //render the light model object
-    // glActiveTexture(GL_TEXTURE0);
-     // glm::vec3 lightPos = lightInfo.lightPosition;
-     // cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
-    //RenderMeshObject(lightModelInfo, camera, cubeObject, false, false);
-
-    
-    */
-
-    //swap buffers, end loop
-    glutSwapBuffers();
-
 }
 
 //called when we want to initialize a depth map for use 
@@ -1235,21 +1209,19 @@ int main(int argc, char** argv)
        planeObject.SetScale(20.0f);
        planeObject.Rotate(90.0f, 0.0f, 0.0f);
 
-      
-
+     
        //Compile shaders for the light model
-     //  CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-     //  CreateBuffers(lightModelInfo, lightMesh, false, false, false);
-
-       //set light model scale
+       lightModelInfo.object->hasNormals = false;
+       lightModelInfo.object->hasTexCoords = false;
+       lightModelInfo.object->hasTextures = false;
+        
+       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+       CreateBuffers(lightModelInfo, lightMesh);
+       drawObjects.push_back(&lightModelInfo);
         cubeObject.scale = (0.3f);
-
-       //initialize shadow/depth map texture
-    //   CreateShadowMap();
 
        //create gBuffers for deferrred shading 
        GenerateDeferredBuffers();
-
 
        //initialize light position
         lightInfo.lightPosition = camera.GetPosition();
