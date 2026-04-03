@@ -61,6 +61,10 @@
 
 */
 
+//screen width and height
+const static int width = 800;
+const static int height = 800;
+
 //declare objects and programs
 #pragma region objectInformation
 //instance of world object transform class for the screenspace render plane
@@ -156,7 +160,7 @@ static float angleInRadians = 0.0f;
 #pragma region deferredRenderingInformation
 //deferred shading fields
 unsigned int gBuffer;
-unsigned int gPosition, gNormal, gColorSpec;
+unsigned int gPosition, gNormal, gColorSpec, depthMap;
 
 std::vector<ProgramInfo*> drawObjects;
 #pragma endregion deferredRenderingInformation
@@ -205,10 +209,6 @@ static persProj lightProjection;
 
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
-
-//screen width and height
-const static int width = 800;
-const static int height = 800;
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -407,15 +407,18 @@ void OnDisplay() {
 }
 
 //called when we want to initialize a depth map for use 
-bool CreateShadowMap() {
+bool CreateShadowMap(ShadowInfo* shadowInfo) {
 
-    glGenFramebuffers(1, &depthMapFBO);
+    unsigned int* depthMap = &shadowInfo->depthMap;
+    unsigned int* depthMapFBO = &shadowInfo->depthMapFBO;
 
-    glGenTextures(1, &depthMap);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
+    glGenFramebuffers(1, depthMapFBO);
+
+    glGenTextures(1, depthMap);
+    glBindTexture(GL_TEXTURE_2D, *depthMap);
     //create the texture image as a depth component
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-        SHADOW_WIDTH,  SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        shadowInfo->SHADOW_WIDTH,  shadowInfo->SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
     glTexParameteri(GL_TEXTURE_2D,
         GL_TEXTURE_COMPARE_MODE,
@@ -436,8 +439,8 @@ bool CreateShadowMap() {
 
 
     //after generating the depth map, attach it to the fbo
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, *depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, *depthMap, 0);
     glDrawBuffer(GL_NONE);
     glDrawBuffer(GL_NONE);
 
