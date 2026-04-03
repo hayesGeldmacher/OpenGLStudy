@@ -32,3 +32,13 @@ struct ProgramInfo {
 	Object* object; 
 
 };
+
+//struct for containing shadow and depth map information
+struct ShadowInfo {
+	//the frame buffer object for the shadows
+	unsigned int depthMapFBO;
+	//the resolution for the shadows
+	const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+	//the texture for the shadows
+	unsigned int depthMap;
+};

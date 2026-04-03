@@ -29,7 +29,7 @@
 #include "ImageLoader.h"
 #include "Object.h"
 #include "Material.h"
-//Hayes Geldmacher - 4/2/26
+//Hayes Geldmacher - 4/3/26
 //CS 6610 - Final Project WIP
 
 //Instructions/controls:
@@ -61,13 +61,14 @@
 
 */
 
-
 //declare objects and programs
+#pragma region objectInformation
+//instance of world object transform class for the screenspace render plane
+Object planeObject;
 
 //instance of world object transform class, generates transformation matrix
 Object teapotObject("teapotReflection.obj");
 ProgramInfo teapotInfo(&teapotObject);
-
 
 Object teapotObjectSecond("teapotReflection.obj");
 ProgramInfo teapotSecondInfo(&teapotObjectSecond);
@@ -82,29 +83,20 @@ cy::TriMesh quadMesh;
 //program  info for the model displaying the light
 Object cubeObject("cube.obj");
 ProgramInfo lightModelInfo(&cubeObject);
-
-
-
-
-
-//the frame buffer object for the shadows
-unsigned int depthMapFBO;
-//the resolution for the shadows
-const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
-//the texture for the shadows
-unsigned int depthMap;
-
-
-
 //mesh used to load light model
 cy::TriMesh lightMesh;
+
+#pragma endregion objectInformation
+
+#pragma region shadowInformation
+
+//struct containing shadow & depth map information
+ShadowInfo shadowInfo;
 
 //program info for the teapot rendered into lightview to generate shadow textures
 ProgramInfo teapotInfoShadow;
 
-
-
-//progrma info for plane rendered with shadows
+//program info for plane rendered with shadows
 ProgramInfo planeInfo;
 
 //program info for the plane rendered into lightview to generate shadow textures
@@ -113,52 +105,24 @@ ProgramInfo planeInfoShadow;
 //program info for testing the depth display on a plane
 ProgramInfo depthDisplayInfo;
 
-
-
 //program info for second teapot second pass using shadow map
 ProgramInfo teapotSecondShadow;
 
 ProgramInfo screenPlaneInfo;
 
-ProgramInfo gBufferObjectInfo;
-
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
-
-
 ProgramInfo quadInfoShadow;
+#pragma endregion shadowInformation
 
-//screen width and height
-const static int width = 800;
-const static int height = 800;
-
-//float used for idle animations of mesh teapot
-static float angleInRadians = 0.0f;
-
-//lighting data
+#pragma region lightInformation
 glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
 float ambientLightIntensity = 0.5f;
 static LightInfo lightInfo(lightColor, ambientColor, ambientLightIntensity);
+#pragma endregion lightInformation
 
-//animation time-tracking
-float currentTime = 0;
-float previousTime = 0;
-float animateSpeed = 0.05f;
-
-//instance of world object transform class for the render plane
-Object planeObject;
-
-//test plane for checking if the depth map was displayed correctly
-Object depthDisplayObject;
-
-
-Material redMaterial;
-Material blueMaterial;
-Material whiteMaterial;
-
-
-
+#pragma region cameraInformation
 glm::vec3 camPos(0.0f, 0.0f, 5.0f);
 glm::vec3 camTarget(2.0f, 0.0f, -5.0f);
 glm::vec3 camUp(0.0f, 1.0f, 0.0f);
@@ -169,8 +133,36 @@ Camera camera(camPos, camTarget, camUp);
 //instance of plane-specific camera 
 Camera planeCamera(camPos, camTarget, camUp);
 
-bool renderScreenSpace = true;
+#pragma endregion cameraInformation
 
+#pragma region animationInformation
+//create a color for R,G,B, and store in an array
+Color red(0.5, true, true);
+Color blue(1, false, true);
+Color green(0.2, false, true);
+
+Color* colors[] = { &red, &blue, &green };
+glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+//animation time-tracking
+float currentTime = 0;
+float previousTime = 0;
+float animateSpeed = 0.05f;
+//float used for idle animations of mesh teapot
+static float angleInRadians = 0.0f;
+
+#pragma endregion animationInformation
+
+#pragma region deferredRenderingInformation
+//deferred shading fields
+unsigned int gBuffer;
+unsigned int gPosition, gNormal, gColorSpec;
+
+std::vector<ProgramInfo*> drawObjects;
+#pragma endregion deferredRenderingInformation
+
+//whether to render the screenspace quad for deferred rendering
+bool renderScreenSpace = true;
 
 //struct, generates perpective and orthographic matrices
 struct persProj {
@@ -208,27 +200,15 @@ struct persProj {
 };
 //instance of projection info struct
 static persProj projInfo;
-
+//projection info for light matrix
 static persProj lightProjection;
-
 
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
 
-//create a color for R,G,B, and store in an array
-Color red(0.5, true, true);
-Color blue(1, false, true);
-Color green(0.2, false, true);
-
-Color* colors[] = { &red, &blue, &green };
-glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
-
-//deferred shading fields
-unsigned int gBuffer;
-unsigned int gPosition, gNormal, gColorSpec;
-
-std::vector<ProgramInfo*> drawObjects;
-
+//screen width and height
+const static int width = 800;
+const static int height = 800;
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -290,7 +270,7 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, Camera &camer
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
 }
 
-    //generate perpsective projection matrix for object-to-light transformation
+//generate perpsective projection matrix for object-to-light transformation
 glm::mat4 GetLightMatrix() {
   
 
@@ -374,6 +354,7 @@ void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
 
 }
 
+//render screenspace plane for deferred rendering
 void RenderScreenSpacePlane() {
     glUseProgram(screenPlaneInfo.programID);
     SetDeferredLighting(screenPlaneInfo, camera);
@@ -394,6 +375,7 @@ void RenderScreenSpacePlane() {
     glDisable(GL_DEPTH_TEST);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
 //called when GLUT draws something to screen
 void OnDisplay() {
 
@@ -616,7 +598,7 @@ bool RenderToTexture() {
     return true;
 }
 
-
+//generates color and depth attachments for deferred rendering gbuffer
 void GenerateDeferredBuffers() {
 
     //generate and bind the gbuffers
@@ -1106,7 +1088,6 @@ void OnSpecialKeyPressedUp(int key, int x, int y) {
         camera.enabled = true;
     }
 
-
     //tell glut to re-render
     glutPostRedisplay();
 }
@@ -1204,11 +1185,9 @@ int main(int argc, char** argv)
 
        //compile testing display depth plane
        CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
-       //CreatePlaneBuffers(screenPlaneInfo.vbo, planeObject);
        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
        planeObject.SetScale(20.0f);
        planeObject.Rotate(90.0f, 0.0f, 0.0f);
-
      
        //Compile shaders for the light model
        lightModelInfo.object->hasNormals = false;
