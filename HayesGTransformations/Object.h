@@ -79,6 +79,10 @@ public:
 	//defaults to an array of planes
 
 
+	bool hasNormals = true;
+	bool hasTexCoords = true;
+	bool hasTextures = false;
+
 	float scale = 1.0f;
 	glm::vec3 rotation = glm::vec3(0.0f, 0.0f, 0.0f);
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);

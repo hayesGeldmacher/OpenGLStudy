@@ -4,10 +4,16 @@
 #include <GL/freeglut.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include "Object.h"
 
 //simple struct for keeping GLints for seperate programs
 struct ProgramInfo {
 
+	ProgramInfo(){}
+	ProgramInfo(Object* objectRef) {
+		object = objectRef;
+	}
+	
 	GLuint programID;
 	GLuint vbo;
 	GLuint vao;
@@ -21,6 +27,8 @@ struct ProgramInfo {
 
 	//just for render-to-texture
 	GLuint frameBuffer;
-	GLuint renderedTexture;
+	GLuint rendereddTexture;
+
+	Object* object; 
 
 };
