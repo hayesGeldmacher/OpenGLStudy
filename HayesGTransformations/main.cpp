@@ -84,6 +84,9 @@ ProgramInfo quadInfo(&quadObject);
 //mesh used to load plane
 cy::TriMesh quadMesh;
 
+Object wallObject("PlaneMesh.obj");
+ProgramInfo wallInfo(&wallObject);
+
 //program  info for the model displaying the light
 Object cubeObject("cube.obj");
 ProgramInfo lightModelInfo(&cubeObject);
@@ -1180,13 +1183,22 @@ int main(int argc, char** argv)
         CompileShaders("ambientObject.vert", "gBuffer.frag", quadInfo.vao, quadInfo.programID);
         CreateBuffers(quadInfo, quadMesh);
         drawObjects.push_back(&quadInfo);
-
        //set plane position, scale, and color for the scene
         quadObject.SetScale(200.0f);
         quadObject.SetPosition(0.0f, -15.0f, 5.0f);
         quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
-       //compile testing display depth plane
+        //compile plane for actual rendering
+        CompileShaders("ambientObject.vert", "gBuffer.frag", wallInfo.vao, wallInfo.programID);
+        CreateBuffers(wallInfo, quadMesh);
+        drawObjects.push_back(&wallInfo);
+        //set wall position, scale, and color
+        wallObject.SetScale(25.0f);
+        wallObject.SetPosition(0.0f, 38.0f, -27.0f);
+        wallObject.SetRotation(90.0f, 0.0f, 0.0f);
+        wallObject.SetColor(0.1f, 0.6f, 0.8f);
+
+       //compile render plane
        CompileShaders("screenPlane.vert", "screenPlane.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
        planeObject.SetScale(20.0f);
