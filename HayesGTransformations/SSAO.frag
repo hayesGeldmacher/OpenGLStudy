@@ -32,7 +32,7 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 0.5f;
+	float radius = 0.1f;
 	float bias = 0.025;
 
 	for(int i = 0; i < kernelSize; i++){
@@ -60,5 +60,7 @@ void main(){
 
 	//normalize occusion by kernel size
 	occlusion = 1.0 - (occlusion/kernelSize);
-	floatColor = vec4(normal.r, normal.g, normal.b, 1.0f);
+	floatColor = vec4(occlusion, occlusion, occlusion, 1.0f);
+	vec3 noiseTest = texture(texNoise, vTex).xyz;
+	//floatColor = vec4(noiseTest, 1.0f);
 }

@@ -21,9 +21,15 @@ out vec4 fragPosLightSpace;
 
 void main(){
 
-	fragPos = vec3(world * vec4(pos, 1.0f));
-	vNormal = transpose(inverse(mat3(world))) * normal;
+	//pasing as standard
+	fragPos = vec3(view * world * vec4(pos, 1.0f));
+
+
+	//passing as standard
+	//vNormal = transpose(inverse(mat3( view * world))) * normal;
+	vNormal = vec3(view * world * vec4(vNormal, 1.0f));
+
 	vTex = texCord;
 	fragPosLightSpace = lightMat * vec4(fragPos, 1.0f);
-	gl_Position = projection * view * vec4(fragPos, 1.0f);
+	gl_Position =  projection * vec4(fragPos, 1.0f);
 }

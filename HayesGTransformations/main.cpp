@@ -1270,7 +1270,7 @@ int main(int argc, char** argv)
        //compile  second teapot for gBuffer
          CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
          CreateBuffers(teapotSecondInfo, teapotMesh);
-       //  drawObjects.push_back(&teapotSecondInfo);
+         drawObjects.push_back(&teapotSecondInfo);
 
        //set second teapot scale and position in worldspace
         teapotObjectSecond.SetScale(0.65f);
