@@ -176,6 +176,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="shadowedPlane.txt" />
+    <Text Include="SSAO.frag" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

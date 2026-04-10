@@ -8,6 +8,7 @@
 #include <GL/freeglut.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 //Additional Standard libraries
 #include <stdlib.h>
 #include <iostream>
@@ -218,7 +219,10 @@ static persProj lightProjection;
 ImageLoader imageLoader;
 
 unsigned int AOFBO; //frame buffer objects for ssao buffer
-unsigned int AOColorBuffer;
+unsigned int AOColorBuffer; //color buffer for storing occlusion information
+unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
+std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
+
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -252,13 +256,11 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
 void SetUniformAttributesTransformations(ProgramInfo &programInfo, Camera &camera, bool flipped) {
     
     //generate view matrix from camera
-
     glm::mat4 camViewMat = camera.GetMatrix();
     glm::mat4 worldMatrix = programInfo.object->GetMat();
     
     //generate perpsective/ortho projection matrix
     glm::mat4 projMat = projInfo.GetProjection();
-
 
     //flip the camera on the Y axis for planar reflections
     if (flipped) {
@@ -282,13 +284,8 @@ void SetUniformAttributesTransformations(ProgramInfo &programInfo, Camera &camer
 
 //generate perpsective projection matrix for object-to-light transformation
 glm::mat4 GetLightMatrix() {
-  
-
     glm::mat4 projMat = lightProjection.GetProjection();
-
-
     glm::vec3 lightPos = lightInfo.lightPosition;
-
     glm::mat4 lightView = glm::lookAt(lightPos,
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f)
@@ -296,7 +293,6 @@ glm::mat4 GetLightMatrix() {
 
     glm::mat4 lightMat = projMat * lightView;
     return lightMat;
-
 }
 
 //renders mesh objects from start to finish
@@ -389,7 +385,7 @@ void RenderScreenSpacePlane() {
 //called when GLUT draws something to screen
 void OnDisplay() {
 
-    
+
     glEnable(GL_DEPTH_TEST);
     //first geometry pass - render data to gbuffer
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
@@ -407,9 +403,38 @@ void OnDisplay() {
         RenderMeshObject(*program, camera, false, false);
     }
 
-    //second pass: use g-buffer to calculate scene lighting
+    //second pass: use G-Buffer to render SSAO texture
+    glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    //access object position info
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gPosition"), 0);
+
+    //acccess tiling noise texture info
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "texNoise"), 1);
+
+    //access fragment normal info
+    glActiveTexture(GL_TEXTURE2);
+    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gNormal"), 2);
+    glBindTexture(GL_TEXTURE_2D, gNormal);
+
+    //send the kernel samples to the shader
+    glUniform3fv(glGetUniformLocation(screenPlaneInfo.programID, "samples"), 64, glm::value_ptr(kernel[0]));
+
+    //send the projection variable
+    glm::mat4 projMat = projInfo.GetProjection();
+    GLuint projectionLocation = glGetUniformLocation(screenPlaneInfo.programID, "projection");
+    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, &projMat[0][0]);
+    
+
+    //lighting pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
     if (renderScreenSpace) { RenderScreenSpacePlane(); }
     
     //end of test deferred shading pass
@@ -621,7 +646,6 @@ void CreateKernal() {
     //create sample kernal of points in hemisphere oriented along z tanget vector
     std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f); //creates random floats between 0 and 1
     std::default_random_engine randGenerator; //declare instance of random num generator
-    std::vector<glm::vec3> kernel;
     for (unsigned int i = 0; i < 64; ++i) {
         glm::vec3 sample(
             randomFloats(randGenerator) * 2.0f - 1.0f,
@@ -647,11 +671,16 @@ void CreateKernal() {
     }
 
     //create tiling 4x4 noise texture to overlay on the screen
-    unsigned int noiseTexture;
+    
     glGenTextures(1, &noiseTexture);
     glBindTexture(GL_TEXTURE_2D, noiseTexture);
     //fill texture with noise data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT, &AONoise[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
 }
 
 //creats the SSAO frame buffer object with color attachments
@@ -1136,7 +1165,6 @@ void OnSpecialKeyPressed(int key, int x, int y) {
        // CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
        // CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
        // CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
-
     }
 
     //sets active rotation 
@@ -1242,13 +1270,13 @@ int main(int argc, char** argv)
        //compile  second teapot for gBuffer
          CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
          CreateBuffers(teapotSecondInfo, teapotMesh);
-         drawObjects.push_back(&teapotSecondInfo);
+       //  drawObjects.push_back(&teapotSecondInfo);
 
        //set second teapot scale and position in worldspace
         teapotObjectSecond.SetScale(0.65f);
         teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
 
-       //compile plane for actual rendering
+       //compile quad floor
         CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
         CreateBuffers(quadInfo, quadMesh);
         drawObjects.push_back(&quadInfo);
@@ -1257,7 +1285,7 @@ int main(int argc, char** argv)
         quadObject.SetPosition(0.0f, -15.0f, 5.0f);
         quadObject.SetColor(0.1f, 1.0f, 0.6f);
 
-        //compile plane for actual rendering
+        //compile wall
         CompileShaders("ambientObject.vert", "AOBuffer.frag", wallInfo.vao, wallInfo.programID);
         CreateBuffers(wallInfo, quadMesh);
         drawObjects.push_back(&wallInfo);
@@ -1268,7 +1296,7 @@ int main(int argc, char** argv)
         wallObject.SetColor(0.1f, 0.6f, 0.8f);
 
        //compile render plane
-       CompileShaders("screenPlane.vert", "AOQUad.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+       CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
        planeObject.SetScale(20.0f);
        planeObject.Rotate(90.0f, 0.0f, 0.0f);
@@ -1280,11 +1308,17 @@ int main(int argc, char** argv)
         
        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
        CreateBuffers(lightModelInfo, lightMesh);
-       drawObjects.push_back(&lightModelInfo);
+        drawObjects.push_back(&lightModelInfo);
         cubeObject.scale = (0.3f);
 
        //create gBuffers for deferrred shading 
        GenerateDeferredBuffers();
+
+       //generate SSAO buffer for storing occlusion information
+       GenerateSSAOBuffer();
+
+       //create the kernals for sampling depth values for SSAO
+       CreateKernal();
 
        //initialize light position
         lightInfo.lightPosition = camera.GetPosition();
