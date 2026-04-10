@@ -1,5 +1,5 @@
 #version 330 core
-out vec4 floatColor;
+layout (location = 3) out float color;
 
 in vec2 vTex;
 
@@ -32,7 +32,7 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 0.1f;
+	float radius = 0.08f;
 	float bias = 0.025;
 
 	for(int i = 0; i < kernelSize; i++){
@@ -55,12 +55,15 @@ void main(){
 	   float rangeCheck = smoothstep(0.0, 1.0f, radius / abs(fragPos.z - sampleDepth));
 	   
 	   //if the sampled depth is greater than the sample position depth, add to occlusion factor
-	   occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0);
+	   occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
 	}
 
 	//normalize occusion by kernel size
 	occlusion = 1.0 - (occlusion/kernelSize);
-	floatColor = vec4(occlusion, occlusion, occlusion, 1.0f);
-	vec3 noiseTest = texture(texNoise, vTex).xyz;
-	//floatColor = vec4(noiseTest, 1.0f);
+
+	color = occlusion;
+
+	//vec3 testColor = vec3(0.1f, 0.1f, 0.1f) * occlusion;
+	//vec3 finalTestColor = vec3(testColor.r  - occlusion, testColor.y - occlusion, testColor.z - occlusion);
+	//floatColor = vec4(testColor, 1.0f);
 }

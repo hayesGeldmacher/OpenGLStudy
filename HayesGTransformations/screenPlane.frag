@@ -6,6 +6,7 @@ in vec2 vTex;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gColorSpec;
+//uniform sampler2D AO;
 
 //uniform lighting variables
 uniform vec3 lightColor;
@@ -44,6 +45,6 @@ void main()
 	lighting += specularLight;
 	color = vec4(lighting, 1.0f);
 
-
-
+	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	color = vec4(normal, 1.0f);
 }  
