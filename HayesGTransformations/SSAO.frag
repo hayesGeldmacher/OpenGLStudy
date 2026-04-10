@@ -38,8 +38,8 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 0.5f;
-	float bias = 0.08;
+	float radius = 1.0f;
+	float bias = 0.8;
 
 	for(int i = 0; i < kernelSize; i++){
 		
