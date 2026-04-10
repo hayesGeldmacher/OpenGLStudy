@@ -13,7 +13,7 @@ uniform vec3 lightColor;
 
 uniform vec3 viewPos;
 uniform vec3 lightPosition;
-
+uniform mat4 projection;
 
 
 void main()
@@ -46,5 +46,6 @@ void main()
 	color = vec4(lighting, 1.0f);
 
 	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	color = vec4(normal, 1.0f);
+	vec4 newNormal = projection * vec4(normal, 1.0f);
+	color = vec4(vec3(newNormal).rgb, 1.0f);
 }  

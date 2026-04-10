@@ -20,5 +20,5 @@ void main()
 	gNormal = normalize(vNormal);
 
 	//store diffuse color
-	gColorSpec.rgb = vec3(0.95);
+	gColorSpec.rgb = vec3(objectColor);
 }  

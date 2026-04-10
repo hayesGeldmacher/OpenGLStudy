@@ -365,9 +365,14 @@ void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
 }
 
 //render screenspace plane for deferred rendering
-void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeAOTexture) {
+void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture) {
+   
     glUseProgram(programInfo.programID);
     SetDeferredLighting(programInfo, camera);
+
+    glm::mat4 projMat = projInfo.GetProjection();
+    GLuint projectionLocation = glGetUniformLocation(programInfo.programID, "projection");
+    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, &projMat[0][0]);
 
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(programInfo.programID, "gPosition"), 0);
@@ -381,14 +386,23 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeAOTexture) {
     glUniform1i(glGetUniformLocation(programInfo.programID, "gNormal"), 2);
     glBindTexture(GL_TEXTURE_2D, gNormal);
 
-    /*
-        if (includeAOTexture) {
-            glActiveTexture(GL_TEXTURE4);
-            glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
-            glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-        }
-    
-    */
+    if (includeNoiseTexture) {
+
+        //send the kernel samples to the shader
+        glUniform3fv(glGetUniformLocation(programInfo.programID, "samples"), 64, glm::value_ptr(kernel[0]));
+
+        //acccess tiling noise texture info
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, noiseTexture);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
+    }
+ 
+    if (includeAOTexture) {
+
+        glActiveTexture(GL_TEXTURE4);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
+        glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
+    }
 
     glBindVertexArray(programInfo.vao);
     glDisable(GL_DEPTH_TEST);
@@ -415,43 +429,23 @@ void OnDisplay() {
         RenderMeshObject(*program, camera, false, false);
     }
 
-    //for testing: disable middle pass for rendering SSAO:
-    
-    /*
     //second pass: use G-Buffer to render SSAO texture
     glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
     glClear(GL_COLOR_BUFFER_BIT);
-    
-    //access object position info
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gPosition);
-    glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gPosition"), 0);
 
-    //acccess tiling noise texture info
-      glActiveTexture(GL_TEXTURE3);
-      glBindTexture(GL_TEXTURE_2D, noiseTexture);
-      glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "texNoise"), 3);
 
-    //access fragment normal info
-      glActiveTexture(GL_TEXTURE2);
-      glBindTexture(GL_TEXTURE_2D, gNormal);
-      glUniform1i(glGetUniformLocation(screenPlaneInfo.programID, "gNormal"), 2);
+   
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); //NOTE - this line is ONLY for testing
+    //when this is actuall the middle pass, delete above line so this renderrs into AOFBO buffer
+    RenderScreenSpacePlane(screenPlaneInfo, true, false);
 
-    //send the kernel samples to the shader
-    glUniform3fv(glGetUniformLocation(screenPlaneInfo.programID, "samples"), 64, glm::value_ptr(kernel[0]));
-    
-
-    //send the projection variable
-    glm::mat4 projMat = projInfo.GetProjection();
-    GLuint projectionLocation = glGetUniformLocation(screenPlaneInfo.programID, "projection");
-    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, &projMat[0][0]);
-    RenderScreenSpacePlane(screenPlaneInfo, false);
-    */
-
+    /* for testing, let's try without rendering the final buffer
     //lighting pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
     RenderScreenSpacePlane(renderPlaneInfo, true);
+    
+    */
     
     //end of test deferred shading pass
     glutSwapBuffers();
@@ -1312,14 +1306,14 @@ int main(int argc, char** argv)
         wallObject.SetColor(0.1f, 0.6f, 0.8f);
 
        //compile plane for SSAO render
-       CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
-       CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
-       planeObject.SetScale(20.0f);
-       planeObject.Rotate(90.0f, 0.0f, 0.0f);
+        CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
 
        //compile plane for final render - uses same object as above, just renders colors differently
-       CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
-       CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
+         CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
+         CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
+          planeObject.SetScale(20.0f);
+          planeObject.Rotate(90.0f, 0.0f, 0.0f);
 
        //compile plane for final screenspace lighting render
 
@@ -1337,10 +1331,10 @@ int main(int argc, char** argv)
        GenerateDeferredBuffers();
 
        //generate SSAO buffer for storing occlusion information
-    //   GenerateSSAOBuffer();
+        GenerateSSAOBuffer();
 
        //create the kernals for sampling depth values for SSAO
-      // CreateKernal();
+        CreateKernal();
 
        //initialize light position
         lightInfo.lightPosition = camera.GetPosition();

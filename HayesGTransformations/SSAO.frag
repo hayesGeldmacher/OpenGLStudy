@@ -1,11 +1,14 @@
 #version 330 core
-layout (location = 3) out float color;
+//layout (location = 3) out float color;
+out vec4 color;
 
 in vec2 vTex;
+
 
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
+uniform sampler2D gColorSpec;
 
 uniform mat4 projection;
 
@@ -22,6 +25,9 @@ void main(){
 	//get the normal postion from gBuffer texture
 	vec3 normal = texture(gNormal, vTex).rgb;
 
+	//get albedo texture from gBuffer
+	vec3 albedo = texture(gColorSpec, vTex).rgb;
+
 	//get random noise
 	vec3 randomVec = texture(texNoise, vTex * noiseScale).xyz;
 
@@ -32,8 +38,8 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 0.08f;
-	float bias = 0.025;
+	float radius = 0.5f;
+	float bias = 0.08;
 
 	for(int i = 0; i < kernelSize; i++){
 		
@@ -61,7 +67,11 @@ void main(){
 	//normalize occusion by kernel size
 	occlusion = 1.0 - (occlusion/kernelSize);
 
-	color = occlusion;
+	//color = occlusion;
+
+	color = vec4(vec3(albedo) ,1.0f);
+	color *= occlusion;
+
 
 	//vec3 testColor = vec3(0.1f, 0.1f, 0.1f) * occlusion;
 	//vec3 finalTestColor = vec3(testColor.r  - occlusion, testColor.y - occlusion, testColor.z - occlusion);

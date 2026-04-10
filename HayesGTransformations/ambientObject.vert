@@ -24,10 +24,8 @@ void main(){
 	//pasing as standard
 	fragPos = vec3(view * world * vec4(pos, 1.0f));
 
-
 	//passing as standard
-	//vNormal = transpose(inverse(mat3( view * world))) * normal;
-	vNormal = vec3(view * world * vec4(vNormal, 1.0f));
+	vNormal = transpose(inverse(mat3(view * world))) * normal;
 
 	vTex = texCord;
 	fragPosLightSpace = lightMat * vec4(fragPos, 1.0f);
