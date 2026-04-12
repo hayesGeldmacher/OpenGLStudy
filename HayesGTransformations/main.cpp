@@ -368,7 +368,7 @@ void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
 }
 
 //render screenspace plane for deferred rendering
-void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture) {
+void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture, bool includeLighting) {
    
     glUseProgram(programInfo.programID);
     SetDeferredLighting(programInfo, camera);
@@ -407,6 +407,10 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
     }
 
+    if (includeLighting) {
+        SetUniformAttributesLighting(programInfo.programID, camera);
+    }
+
     glBindVertexArray(programInfo.vao);
     glDisable(GL_DEPTH_TEST);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -435,13 +439,13 @@ void OnDisplay() {
     //second pass: use G-Buffer to render SSAO texture
     glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(screenPlaneInfo, true, false);
+    RenderScreenSpacePlane(screenPlaneInfo, true, false, false);
 
     //third pass: blur SSAO texture
    // glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO);
      glBindFramebuffer(GL_FRAMEBUFFER, 0); //NOTE - this line is ONLY for testing, use above line once this works
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(blurPlaneInfo, false, true);
+    RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
 
     /* for testing, let's try without rendering the final buffer
     
@@ -449,7 +453,7 @@ void OnDisplay() {
     //third pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(renderPlaneInfo, false, true);
+    RenderScreenSpacePlane(renderPlaneInfo, false, true, true);
     
     //end of test deferred shading pass
     glutSwapBuffers();

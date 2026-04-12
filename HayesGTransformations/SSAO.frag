@@ -70,16 +70,5 @@ void main(){
 	//normalize occusion by kernel size
 	occlusion = 1.0 - (occlusion/kernelSize);
 
-	//color = occlusion;
-
-	//color = vec4(vec3(albedo) ,1.0f);
-	//color *= occlusion;
-
-
-	//vec3 testColor = vec3(0.1f, 0.1f, 0.1f) * occlusion;
-	//vec3 finalTestColor = vec3(testColor.r  - occlusion, testColor.y - occlusion, testColor.z - occlusion);
-	//floatColor = vec4(testColor, 1.0f);
-
 	fragColor = occlusion;
-	fragColor = 1.0f;
 }

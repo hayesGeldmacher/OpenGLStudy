@@ -6,7 +6,7 @@ in vec2 vTex;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gColorSpec;
-//uniform sampler2D AO;
+uniform sampler2D AO;
 
 //uniform lighting variables
 uniform vec3 lightColor;
@@ -23,6 +23,7 @@ void main()
 	vec3 normal = texture(gNormal, vTex).rgb;
 	vec3 albedo = texture(gColorSpec, vTex).rgb;
 	float specular = texture(gColorSpec, vTex).a;
+	float occlusion = texture(AO, vTex).r;
 
 	vec3 lighting =  albedo * 0.1f; //get a hard-coded value for ambient lighting
 	vec3 viewDir = normalize(viewPos - fragPos);
@@ -45,7 +46,6 @@ void main()
 	lighting += specularLight;
 	color = vec4(lighting, 1.0f);
 
-	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	vec4 newNormal = vec4(normal, 1.0f);
-	color = vec4(vec3(newNormal).rgb, 1.0f);
+   	color = vec4(vec3(albedo) ,1.0f);
+	color *= occlusion;
 }  
