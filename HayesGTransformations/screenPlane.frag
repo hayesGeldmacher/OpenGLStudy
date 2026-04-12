@@ -3,10 +3,10 @@ out vec4 color;
  
 in vec2 vTex;
 
+uniform sampler2D AO;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gColorSpec;
-uniform sampler2D AO;
 
 //uniform lighting variables
 uniform vec3 lightColor;

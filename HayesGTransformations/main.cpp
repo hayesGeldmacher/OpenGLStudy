@@ -367,6 +367,12 @@ void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
 
 }
 
+void RenderScreenQuad(ProgramInfo& programInfo) {
+    glBindVertexArray(programInfo.vao);
+    glDisable(GL_DEPTH_TEST);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
 //render screenspace plane for deferred rendering
 void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture, bool includeLighting) {
    
@@ -409,11 +415,12 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
 
     if (includeLighting) {
         SetUniformAttributesLighting(programInfo.programID, camera);
+        glActiveTexture(GL_TEXTURE4);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
+        glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur);
     }
 
-    glBindVertexArray(programInfo.vao);
-    glDisable(GL_DEPTH_TEST);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    RenderScreenQuad(programInfo);
 }
 
 //called when GLUT draws something to screen
@@ -435,25 +442,26 @@ void OnDisplay() {
     for (ProgramInfo* program : drawObjects) {
         RenderMeshObject(*program, camera, false, false);
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //second pass: use G-Buffer to render SSAO texture
-    glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
-    glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(screenPlaneInfo, true, false, false);
+      glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+      glClear(GL_COLOR_BUFFER_BIT);
+      RenderScreenSpacePlane(screenPlaneInfo, true, false, false);
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //third pass: blur SSAO texture
-   // glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO);
-     glBindFramebuffer(GL_FRAMEBUFFER, 0); //NOTE - this line is ONLY for testing, use above line once this works
+    glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO); 
     glClear(GL_COLOR_BUFFER_BIT);
     RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
 
-    /* for testing, let's try without rendering the final buffer
-    
-    */
-    //third pass: use g-buffer to calculate scene lighting
+    //fourth pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(renderPlaneInfo, false, true, true);
+    RenderScreenSpacePlane(renderPlaneInfo, false, false, true);
+
+    /*
+    */
     
     //end of test deferred shading pass
     glutSwapBuffers();
@@ -728,6 +736,8 @@ void GenerateSSAOBuffer() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //set min and mag texture filtering
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBufferBlur, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 //generates color and depth attachments for deferred rendering gbuffer
