@@ -120,6 +120,8 @@ ProgramInfo teapotSecondShadow;
 //program info getting SSAO to the screen
 ProgramInfo screenPlaneInfo;
 
+ProgramInfo blurPlaneInfo;
+
 //program info for getting final render to the scren
 ProgramInfo renderPlaneInfo;
 
@@ -225,7 +227,7 @@ ImageLoader imageLoader;
 unsigned int AOFBO; //frame buffer objects for ssao buffer
 unsigned int AOColorBuffer; //color buffer for storing occlusion information
 unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
-unsigned int AOBlurFB, AOColorBufferBufferBlur; //frame buffer object for blurring AO
+unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
 
 
@@ -433,20 +435,21 @@ void OnDisplay() {
     //second pass: use G-Buffer to render SSAO texture
     glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
     glClear(GL_COLOR_BUFFER_BIT);
-
-
-   
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); //NOTE - this line is ONLY for testing
-    //when this is actuall the middle pass, delete above line so this renderrs into AOFBO buffer
     RenderScreenSpacePlane(screenPlaneInfo, true, false);
 
-    /* for testing, let's try without rendering the final buffer
-    //lighting pass: use g-buffer to calculate scene lighting
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //third pass: blur SSAO texture
+   // glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO);
+     glBindFramebuffer(GL_FRAMEBUFFER, 0); //NOTE - this line is ONLY for testing, use above line once this works
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(renderPlaneInfo, true);
+    RenderScreenSpacePlane(blurPlaneInfo, false, true);
+
+    /* for testing, let's try without rendering the final buffer
     
     */
+    //third pass: use g-buffer to calculate scene lighting
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    RenderScreenSpacePlane(renderPlaneInfo, false, true);
     
     //end of test deferred shading pass
     glutSwapBuffers();
@@ -708,10 +711,19 @@ void GenerateSSAOBuffer() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, AOColorBuffer, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBuffer, 0);
 
     //next create the frame buffer for blurring AO to remove random noise artifacts
-    
+    glGenFramebuffers(1, &AOBlurFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO);
+
+    glGenTextures(1, &AOColorBufferBlur);
+    glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur);
+    //also only need one color channel for ao blurring
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //set min and mag texture filtering
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBufferBlur, 0);
 }
 
 //generates color and depth attachments for deferred rendering gbuffer
@@ -1314,11 +1326,15 @@ int main(int argc, char** argv)
         CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
         CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
 
+        //compile plane for SSAO blurring shader
+        CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
+        CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
+
        //compile plane for final render - uses same object as above, just renders colors differently
          CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
          CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
-          planeObject.SetScale(20.0f);
-          planeObject.Rotate(90.0f, 0.0f, 0.0f);
+         planeObject.SetScale(20.0f);
+         planeObject.Rotate(90.0f, 0.0f, 0.0f);
 
        //compile plane for final screenspace lighting render
 

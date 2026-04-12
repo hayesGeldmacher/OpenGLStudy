@@ -138,6 +138,7 @@
   <ItemGroup>
     <None Include="ambientObject.frag" />
     <None Include="ambientObject.vert" />
+    <None Include="AOBlur.frag" />
     <None Include="AOBuffer.frag" />
     <None Include="AOQuad.frag" />
     <None Include="cubeMap.frag" />

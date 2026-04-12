@@ -75,6 +75,7 @@
       <Filter>Header Files</Filter>
     </None>
     <None Include="AOQuad.frag" />
+    <None Include="AOBlur.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -113,5 +114,6 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="shadowedPlane.txt" />
+    <Text Include="SSAO.frag" />
   </ItemGroup>
 </Project>

@@ -46,6 +46,6 @@ void main()
 	color = vec4(lighting, 1.0f);
 
 	color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	vec4 newNormal = projection * vec4(normal, 1.0f);
+	vec4 newNormal = vec4(normal, 1.0f);
 	color = vec4(vec3(newNormal).rgb, 1.0f);
 }  

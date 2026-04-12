@@ -1,9 +1,9 @@
 #version 330 core
-//layout (location = 3) out float color;
-out vec4 color;
+layout (location = 0) out float fragColor;
+
 
 in vec2 vTex;
-
+out vec2 TexCoords;
 
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
@@ -18,6 +18,9 @@ const vec2 noiseScale = vec2(800.0/4.0, 600.0/4.0); //screen is 800x800
 uniform vec3 samples[64]; //the random sampling positions 
 
 void main(){
+
+	//pass texture coordinates to the blur shader
+	TexCoords = vTex;
 
 	//get the fragment position from gBuffer texture
 	vec3 fragPos = texture(gPosition, vTex).xyz;
@@ -69,11 +72,14 @@ void main(){
 
 	//color = occlusion;
 
-	color = vec4(vec3(albedo) ,1.0f);
-	color *= occlusion;
+	//color = vec4(vec3(albedo) ,1.0f);
+	//color *= occlusion;
 
 
 	//vec3 testColor = vec3(0.1f, 0.1f, 0.1f) * occlusion;
 	//vec3 finalTestColor = vec3(testColor.r  - occlusion, testColor.y - occlusion, testColor.z - occlusion);
 	//floatColor = vec4(testColor, 1.0f);
+
+	fragColor = occlusion;
+	fragColor = 1.0f;
 }
