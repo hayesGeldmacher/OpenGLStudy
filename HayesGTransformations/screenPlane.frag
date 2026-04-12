@@ -25,27 +25,7 @@ void main()
 	float specular = texture(gColorSpec, vTex).a;
 	float occlusion = texture(AO, vTex).r;
 
-	vec3 lighting =  albedo * 0.1f; //get a hard-coded value for ambient lighting
-	vec3 viewDir = normalize(viewPos - fragPos);
-	vec3 lightDir = normalize(lightPosition - fragPos);
-
-	vec3 testRedColor = vec3(1.0f, 0.0f, 0.0f);
-    float diff = max(dot(normal, lightDir), 0.0);
-	vec3 diffuse = diff * albedo * lightColor;
-
-    //get reflections for phong shading
-	vec3 halfwayDir = normalize(lightDir + viewDir);
-	vec3 reflectDir = reflect(-lightDir, normal);
-
-	//get specular
-    float spec = pow(max(dot(normal, reflectDir), 0.0f), specular);
-    float specularStrength = 0.5f;
-    vec3 specularLight = specularStrength * spec * lightColor;
-
-	lighting += diffuse;
-	lighting += specularLight;
-	color = vec4(lighting, 1.0f);
-
+	//for now, we are using just standard albedo
    	color = vec4(vec3(albedo) ,1.0f);
 	color *= occlusion;
 }  
