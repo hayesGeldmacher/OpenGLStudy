@@ -225,6 +225,7 @@ ImageLoader imageLoader;
 unsigned int AOFBO; //frame buffer objects for ssao buffer
 unsigned int AOColorBuffer; //color buffer for storing occlusion information
 unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
+unsigned int AOBlurFB, AOColorBufferBufferBlur; //frame buffer object for blurring AO
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
 
 
@@ -696,6 +697,7 @@ void CreateKernal() {
 //creats the SSAO frame buffer object with color attachments
 void GenerateSSAOBuffer() {
     
+    //first create the frame buffer for storing AO color
     glGenFramebuffers(1, &AOFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
 
@@ -707,6 +709,9 @@ void GenerateSSAOBuffer() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, AOColorBuffer, 0);
+
+    //next create the frame buffer for blurring AO to remove random noise artifacts
+    
 }
 
 //generates color and depth attachments for deferred rendering gbuffer

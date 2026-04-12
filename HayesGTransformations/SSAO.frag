@@ -38,8 +38,8 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 1.0f;
-	float bias = 0.8;
+	float radius = 3.0f; //changes exaggeration of AO
+	float bias = 0.5;
 
 	for(int i = 0; i < kernelSize; i++){
 		
