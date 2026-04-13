@@ -90,6 +90,7 @@ void main(){
 float fragColor = 0;
 
 	fragColor = ComputeKernelSSAO();
+	fragColor = 1 - fragColor;
 
 	//fragColor = pow(occlusion, power);
 	color = vec4(fragColor, fragColor, fragColor, 1.0f);
