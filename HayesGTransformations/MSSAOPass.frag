@@ -12,7 +12,7 @@ uniform mat4 projection;
 uniform int kernelSize;
 uniform int power;
 
-uniform float uRadii[3]; //ex. {0.5, 2.0, 5.0}
+uniform float uRadii[3]; //ex. {0.5, 3.0, 7.0}
 uniform float uMipLevels[3]; // {ex. 0.0f, 2.0, 4.0f}
 
 //tile noise texture of the screen
@@ -86,4 +86,5 @@ float ComputeKernelSSAO(){
 void main(){
 	fragColor = ComputeKernelSSAO();
 	fragColor = 1 - fragColor;
+	fragColor = pow(fragColor, power);
 }

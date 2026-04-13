@@ -237,6 +237,8 @@ unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
 unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
 int kernelNumber = 64;
 int occlusionPower = 1;
+int currentOcclusionLevel = 0;
+int occlusionPowerLevels[4] = { 1.0f, 2.0f, 4.0f, 8.0f };
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
 int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
 #pragma endregion AOInformation
@@ -432,6 +434,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
             if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
             else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
+            glUniform1i(glGetUniformLocation(programInfo.programID, "power"), occlusionPower);
             
         }
         else {
@@ -1267,6 +1270,19 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     }
 }
 
+void SetAOPower(bool up) {
+    if (up) {
+        currentOcclusionLevel++;
+        if (currentOcclusionLevel >= 4) {currentOcclusionLevel = 3;}
+        occlusionPower = occlusionPowerLevels[currentOcclusionLevel];
+    }
+    else {
+        currentOcclusionLevel--;
+        if (currentOcclusionLevel < 0) { currentOcclusionLevel = 0; }
+        occlusionPower = occlusionPowerLevels[currentOcclusionLevel];
+    }
+}
+
 void OnSpecialKeyPressed(int key, int x, int y) {
 
     //recompile shaders if 'f6' key is pressed
@@ -1289,6 +1305,13 @@ void OnSpecialKeyPressed(int key, int x, int y) {
         std::cout << "Now rotating the plane!" << std::endl;
         planeCamera.SetEnabled(true);
         camera.SetEnabled(false);
+    }
+
+    if (key == GLUT_KEY_DOWN) {
+        SetAOPower(false);
+    }
+    else if (key == GLUT_KEY_UP) {
+        SetAOPower(true);
     }
 
     //tell glut to re-render
@@ -1332,7 +1355,6 @@ void CreateCallbacks() {
 
 int main(int argc, char** argv)
 {
-    glfwSwapInterval(0);
     //initialize GLUT
     glutInit(&argc, argv);
 
@@ -1429,7 +1451,7 @@ int main(int argc, char** argv)
        lightModelInfo.object->hasTexCoords = false;
        lightModelInfo.object->hasTextures = false;
         
-       CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+       CompileShaders("ambientObject.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
        CreateBuffers(lightModelInfo, lightMesh);
        drawObjects.push_back(&lightModelInfo);
        cubeObject.scale = (0.3f);
