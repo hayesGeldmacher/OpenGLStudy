@@ -120,6 +120,9 @@ Object rockObject("rocks.obj");
 ProgramInfo rockInfo(&rockObject);
 cy::TriMesh rockMesh;
 
+Object vaseObject("vases.obj");
+ProgramInfo vaseInfo(&vaseObject);
+cy::TriMesh vaseMesh;
 
 
 #pragma endregion objectInformation
@@ -1428,6 +1431,7 @@ int main(int argc, char** argv)
        drawObjects.push_back(&daisInfo);
        daisObject.SetScale(5.0f);
        daisObject.SetPosition(0.0f, -15.0f, 0.0f);
+       daisObject.Rotate(0.0f, 90.0f, 0.0f);
 
        //compile ceiling
        CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
@@ -1457,14 +1461,15 @@ int main(int argc, char** argv)
        CreateBuffers(rockInfo, rockMesh);
        drawObjects.push_back(&rockInfo);
        rockObject.SetScale(7.0f);
-       rockObject.SetPosition(0.0f, -15.0f, -65.0f);
+       rockObject.SetPosition(-4.0f, -20.0f, -65.0f);
 
-       //compile teapot for gBuffer
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotInfo.vao, teapotInfo.programID);
-       CreateBuffers(teapotInfo, teapotMesh);
-       drawObjects.push_back(&teapotInfo);
-       teapotObject.SetScale(0.5f);
-       teapotObject.SetPosition(30, -15, 30.0f);
+       //compile vases
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
+       CreateBuffers(vaseInfo, vaseMesh);
+       drawObjects.push_back(&vaseInfo);
+       vaseObject.SetScale(7.0f);
+       vaseObject.SetPosition(-50, -15, 25.0f);
+       vaseObject.Rotate(0.0f, -45.0f, 0.0f);
 
        //compile quad floor
         CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
