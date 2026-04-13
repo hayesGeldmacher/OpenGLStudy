@@ -148,6 +148,7 @@
     <None Include="GBuffer.frag" />
     <None Include="lightModel.frag" />
     <None Include="lightModel.vert" />
+    <None Include="MSSAOPass.frag" />
     <None Include="packages.config" />
     <None Include="reflection.frag" />
     <None Include="reflection.vert" />

@@ -60,6 +60,6 @@ void main()
 	color = vec4(lighting, 1.0f);
 
 	//for now, we are using just standard albedo
-   	//color = vec4(vec3(albedo) ,1.0f);
-	//color *= occlusion;
+   	color = vec4(vec3(normal) ,1.0f);
+	color *= occlusion;
 }  

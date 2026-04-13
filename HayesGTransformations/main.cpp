@@ -125,6 +125,8 @@ ProgramInfo blurPlaneInfo;
 //program info for getting final render to the scren
 ProgramInfo renderPlaneInfo;
 
+ProgramInfo resolutionPlaneInfo;
+
 //the render buffer used for render-to-texture
 cy::GLRenderTexture2D renderBuffer;
 ProgramInfo quadInfoShadow;
@@ -182,6 +184,8 @@ bool renderScreenSpace = true;
 //whether to render ambient occlusion
 bool renderAO = true;
 
+bool blurAO = true;
+
 //struct, generates perpective and orthographic matrices
 struct persProj {
     glm::mat4 GetProjection() {
@@ -228,7 +232,11 @@ unsigned int AOFBO; //frame buffer objects for ssao buffer
 unsigned int AOColorBuffer; //color buffer for storing occlusion information
 unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
 unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
+int kernelNumber = 64;
+int occlusionPower = 1;
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
+
+int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
 
 
 //called during onDisplay, sets all uniform shader variables
@@ -397,12 +405,15 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
     if (includeNoiseTexture) {
 
         //send the kernel samples to the shader
-        glUniform3fv(glGetUniformLocation(programInfo.programID, "samples"), 64, glm::value_ptr(kernel[0]));
+        glUniform3fv(glGetUniformLocation(programInfo.programID, "samples"), kernelNumber, glm::value_ptr(kernel[0]));
 
         //acccess tiling noise texture info
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, noiseTexture);
         glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
+
+        glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), kernelNumber);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "power"), occlusionPower);
     }
  
     if (includeAOTexture) {
@@ -416,7 +427,9 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         SetUniformAttributesLighting(programInfo.programID, camera);
         glActiveTexture(GL_TEXTURE4);
         glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-        glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur);
+
+        if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
+        else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
         
         glm::mat4 camViewMat = camera.GetMatrix();
         GLint uniformLocation;
@@ -450,25 +463,40 @@ void OnDisplay() {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    /*
+        //second test pass: just render into MSSAOPass and check
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(resolutionPlaneInfo.programID);
+        glActiveTexture(GL_TEXTURE2);
+        glUniform1i(glGetUniformLocation(resolutionPlaneInfo.programID, "gNormal"), 2);
+        glBindTexture(GL_TEXTURE_2D, gNormal);
+        RenderScreenQuad(resolutionPlaneInfo);
+    
+    */
+
+    
     //second pass: use G-Buffer to render SSAO texture
-      glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+      //glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
       glClear(GL_COLOR_BUFFER_BIT);
       RenderScreenSpacePlane(screenPlaneInfo, true, false, false);
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    //third pass: blur SSAO texture
-    glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO); 
-    glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
+    /*
+      if (blurAO) {
+        //third pass: blur SSAO texture
+        glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO); 
+        glClear(GL_COLOR_BUFFER_BIT);
+        RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
+
+      }
 
     //fourth pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     RenderScreenSpacePlane(renderPlaneInfo, false, false, true);
 
-    /*
     */
-    
     //end of test deferred shading pass
     glutSwapBuffers();
 }
@@ -576,7 +604,7 @@ void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLui
     glTexImage2D(
 
         GL_TEXTURE_2D, //define as 2D texture type
-        0, //at mipmap leveel 0 - highest resolution iamge
+        0, //at mipmap leveel 0 - highest resolution image
         GL_RGBA, //the internal formatting
         textureWidth, //image width
         textureHeight, //image height
@@ -678,7 +706,7 @@ void CreateKernal() {
     //create sample kernal of points in hemisphere oriented along z tanget vector
     std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f); //creates random floats between 0 and 1
     std::default_random_engine randGenerator; //declare instance of random num generator
-    for (unsigned int i = 0; i < 64; ++i) {
+    for (unsigned int i = 0; i < kernelNumber; ++i) {
         glm::vec3 sample(
             randomFloats(randGenerator) * 2.0f - 1.0f,
             randomFloats(randGenerator) * 2.0f - 1.0f,
@@ -686,7 +714,7 @@ void CreateKernal() {
         );
 
         //weigh points more heavily as they are closer to the center fragmnent
-        float size = (float)i / 64.0;
+        float size = (float)i / kernelNumber;
         size = Lerp(0.1f, 1.0f, size * size);
         sample *= size;
         kernel.push_back(sample);
@@ -1349,6 +1377,10 @@ int main(int argc, char** argv)
         //compile plane for SSAO blurring shader
         CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
         CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
+
+        //compile plane for SSAO blurring shader
+        CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
+        CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
 
        //compile plane for final render - uses same object as above, just renders colors differently
          CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
