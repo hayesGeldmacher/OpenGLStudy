@@ -13,6 +13,8 @@ uniform sampler2D gColorSpec;
 uniform mat4 projection;
 uniform int power;
 
+uniform float radius;
+uniform float bias;
 
 //tile noise texture of the screen
 const vec2 noiseScale = vec2(800.0/4.0, 600.0/4.0); //screen is 800x800
@@ -43,8 +45,6 @@ void main(){
 
 	float occlusion = 0.0f;
 	int kernelSize = 64;
-	float radius = 3.0f; //changes exaggeration of AO
-	float bias = 0.5;
 
 	for(int i = 0; i < kernelSize; i++){
 		

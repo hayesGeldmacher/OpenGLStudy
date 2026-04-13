@@ -266,9 +266,23 @@ unsigned int AOColorBuffer; //color buffer for storing occlusion information
 unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
 unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
 int kernelNumber = 64;
-int occlusionPower = 1;
+
+//change the exaggeration of AO
+int AOPower = 1;
 int currentOcclusionLevel = 0;
 int occlusionPowerLevels[4] = { 1.0f, 2.0f, 4.0f, 8.0f };
+
+//change the radius for AO
+float AOradius = 2.0f; 
+int currentRadiusLevel = 1;
+float radiusLevels[4] = { 0.5f, 2.0f, 3.5f, 5.0f };
+
+//change the radius for AO
+float AObias = 0.5f; 
+int currentBiasLevel = 1;
+float biasLevels[4] = { 0.25, 0.5f, 0.75f, 1.0f };
+
+
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
 int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
 #pragma endregion AOInformation
@@ -447,7 +461,9 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
 
         glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), kernelNumber);
-        glUniform1i(glGetUniformLocation(programInfo.programID, "power"), occlusionPower);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "power"), AOPower);
+        glUniform1f(glGetUniformLocation(programInfo.programID, "bias"), AObias);
+        glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AOradius);
     }
  
     if (includeAOTexture) {
@@ -464,7 +480,6 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
             if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
             else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
-            glUniform1i(glGetUniformLocation(programInfo.programID, "power"), occlusionPower);
             
         }
         else {
@@ -1259,6 +1274,45 @@ void OnMouseMotion(int x, int y) {
     glutPostRedisplay();
 }
 
+void SetAORadius(bool up) {
+    if (up) {
+        currentRadiusLevel++;
+        if (currentRadiusLevel >= 4) { currentRadiusLevel = 3; }
+    }
+    else {
+        currentRadiusLevel--;
+        if (currentRadiusLevel < 0) { currentRadiusLevel = 0; }
+    }
+    AOradius = radiusLevels[currentRadiusLevel];
+    std::cout << "set AO radius to: " << AOradius << std::endl;
+}
+
+void SetAOBias(bool up) {
+    if (up) {
+        currentBiasLevel++;
+        if (currentBiasLevel >= 4) { currentBiasLevel = 3; }
+    }
+    else {
+        currentBiasLevel--;
+        if (currentBiasLevel < 0) { currentBiasLevel = 0; }
+    }
+    AObias = biasLevels[currentBiasLevel];
+    std::cout << "set AO bias to: " << AObias << std::endl;
+}
+
+void SetAOPower(bool up) {
+    if (up) {
+        currentOcclusionLevel++;
+        if (currentOcclusionLevel >= 4) { currentOcclusionLevel = 3; }
+    }
+    else {
+        currentOcclusionLevel--;
+        if (currentOcclusionLevel < 0) { currentOcclusionLevel = 0; }
+    }
+    AOPower = occlusionPowerLevels[currentOcclusionLevel];
+    std::cout << "set AO power to: " << AOPower << std::endl;
+}
+
 //keyboard input callback
 void OnKeyPressed(unsigned char key, int x, int y) {
 
@@ -1273,10 +1327,6 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     if (key == 'p') {
         //toggle between perspective and ortho rotation
         projInfo.ToggleProjection();
-    }
-    else if (key == 'r') {
-        //toggle object idle rotation
-         teapotInfo.object->ToggleRotating();
     }
     else if (key == 'b') {
         blurAO = !blurAO;
@@ -1298,19 +1348,13 @@ void OnKeyPressed(unsigned char key, int x, int y) {
         if (useMultiAO) { std::cout << "Enabled MSSSAO!" << std::endl; }
         else { std::cout << "Disabled MSSSAO!" << std::endl; }
     }
-}
+    if (key == 'r') {
+        SetAORadius(false);
+    }
+    else if (key == 't') {
+        SetAORadius(true);
+    }
 
-void SetAOPower(bool up) {
-    if (up) {
-        currentOcclusionLevel++;
-        if (currentOcclusionLevel >= 4) {currentOcclusionLevel = 3;}
-        occlusionPower = occlusionPowerLevels[currentOcclusionLevel];
-    }
-    else {
-        currentOcclusionLevel--;
-        if (currentOcclusionLevel < 0) { currentOcclusionLevel = 0; }
-        occlusionPower = occlusionPowerLevels[currentOcclusionLevel];
-    }
 }
 
 void OnSpecialKeyPressed(int key, int x, int y) {
@@ -1337,6 +1381,12 @@ void OnSpecialKeyPressed(int key, int x, int y) {
         SetAOPower(true);
     }
 
+    if (key == GLUT_KEY_LEFT) {
+        SetAOBias(false);
+    }
+    else if (key == GLUT_KEY_RIGHT) {
+        SetAOBias(true);
+    }
     //tell glut to re-render
     glutPostRedisplay();
 }

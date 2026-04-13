@@ -12,6 +12,9 @@ uniform mat4 projection;
 uniform int kernelSize;
 uniform int power;
 
+uniform float bias;
+
+
 uniform float uRadii[3]; //ex. {0.5, 3.0, 7.0}
 uniform float uMipLevels[3]; // {ex. 0.0f, 2.0, 4.0f}
 
@@ -41,7 +44,6 @@ float ComputeKernelSSAO(){
 	vec3 bitTangent = cross(normal, tangent);
 	mat3 TBN = mat3(tangent, bitTangent, normal);
 
-	float bias = 0.5;
 	for(int i = 0; i < 3; ++i){
 	
 		float scaleOcclusion = 0.0;
