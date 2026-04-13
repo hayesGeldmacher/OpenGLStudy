@@ -377,7 +377,6 @@ void RenderScreenQuad(ProgramInfo& programInfo) {
 void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture, bool includeLighting) {
    
     glUseProgram(programInfo.programID);
-    SetDeferredLighting(programInfo, camera);
 
     glm::mat4 projMat = projInfo.GetProjection();
     GLuint projectionLocation = glGetUniformLocation(programInfo.programID, "projection");
@@ -418,6 +417,13 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         glActiveTexture(GL_TEXTURE4);
         glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
         glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur);
+        
+        glm::mat4 camViewMat = camera.GetMatrix();
+        GLint uniformLocation;
+        //send the camera view variable
+        uniformLocation = glGetUniformLocation(programInfo.programID, "view");
+        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+
     }
 
     RenderScreenQuad(programInfo);
