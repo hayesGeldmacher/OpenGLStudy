@@ -104,7 +104,7 @@ public:
 	float zoomSpeed = 0.4f;
 	float currentZoom = 100.0f;
 	float maxZoom = 150.0f;
-	float minZoom = 50.0f;
+	float minZoom = 20.0f;
 
 
 
