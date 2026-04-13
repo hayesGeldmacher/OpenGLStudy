@@ -164,7 +164,7 @@ glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
 //animation time-tracking
 float currentTime = 0;
 float previousTime = 0;
-float animateSpeed = 0.05f;
+float animateSpeed = 5000.0f;
 //float used for idle animations of mesh teapot
 static float angleInRadians = 0.0f;
 
@@ -178,15 +178,6 @@ unsigned int gPosition, gNormal, gColorSpec, depthMap;
 std::vector<ProgramInfo*> drawObjects;
 #pragma endregion deferredRenderingInformation
 
-//whether to render the screenspace quad for deferred rendering
-bool renderScreenSpace = true;
-
-//whether to render ambient occlusion
-bool renderAO = true;
-
-bool blurAO = false;
-
-bool useMultiAO = true;
 
 //struct, generates perpective and orthographic matrices
 struct persProj {
@@ -226,10 +217,20 @@ struct persProj {
 static persProj projInfo;
 //projection info for light matrix
 static persProj lightProjection;
-
 //image loader object for loading texture data from image files
 ImageLoader imageLoader;
+float timeDifference = 0.0f;
+float frameCurrentTime = 0.0f;
+float framePreviousTime = 0.0f;
+float frameTimeDifference = 0.0f;
+unsigned int counter = 0.0f;
 
+#pragma region AOInformation
+//whether to render ambient occlusion
+bool renderAO = true;
+bool blurAO = true;
+bool useMultiAO = true;
+bool calculateLighting = false;
 unsigned int AOFBO; //frame buffer objects for ssao buffer
 unsigned int AOColorBuffer; //color buffer for storing occlusion information
 unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
@@ -237,11 +238,8 @@ unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
 int kernelNumber = 64;
 int occlusionPower = 1;
 std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
-
 int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
-
-float timeDifference = 0.0f;
-unsigned int counter = 0;
+#pragma endregion AOInformation
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -428,19 +426,30 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
     }
 
     if (includeLighting) {
-        SetUniformAttributesLighting(programInfo.programID, camera);
-        glActiveTexture(GL_TEXTURE4);
-        glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-
-        if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
-        else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
+        if (renderAO) {
+            glUniform1i(glGetUniformLocation(programInfo.programID, "renderAO"), 1);
+            glActiveTexture(GL_TEXTURE4);
+            glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
+            if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
+            else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
+            
+        }
+        else {
+            glUniform1i(glGetUniformLocation(programInfo.programID, "renderAO"), 0);
+        }
         
-        glm::mat4 camViewMat = camera.GetMatrix();
-        GLint uniformLocation;
-        //send the camera view variable
-        uniformLocation = glGetUniformLocation(programInfo.programID, "view");
-        glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
-
+        if (calculateLighting) {
+            SetUniformAttributesLighting(programInfo.programID, camera);
+            glm::mat4 camViewMat = camera.GetMatrix();
+            GLint uniformLocation;
+            //send the camera view variable
+            uniformLocation = glGetUniformLocation(programInfo.programID, "view");
+            glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+            glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 1);
+        }
+        else{
+            glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 0);
+        }
     }
 
     RenderScreenQuad(programInfo);
@@ -468,59 +477,30 @@ void OnDisplay() {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    /*
-        //second test pass: just render into MSSAOPass and check
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(resolutionPlaneInfo.programID);
-        glActiveTexture(GL_TEXTURE2);
-        glUniform1i(glGetUniformLocation(resolutionPlaneInfo.programID, "gNormal"), 2);
-        glBindTexture(GL_TEXTURE_2D, gNormal);
-        RenderScreenQuad(resolutionPlaneInfo);
-    
-    */
+    if (renderAO) {
 
-    
-    //second pass: use G-Buffer to render SSAO texture
-      //glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+       //second pass: use G-Buffer to render SSAO texture
+      glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
       glClear(GL_COLOR_BUFFER_BIT);
-      RenderScreenSpacePlane(screenPlaneInfo, true, false, false);
+      if (useMultiAO) { RenderScreenSpacePlane(resolutionPlaneInfo, true, false, false); }
+      else { RenderScreenSpacePlane(screenPlaneInfo, true, false, false); }
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    /*
       if (blurAO) {
         //third pass: blur SSAO texture
         glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO); 
         glClear(GL_COLOR_BUFFER_BIT);
         RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
-
       }
+    }
 
     //fourth pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     RenderScreenSpacePlane(renderPlaneInfo, false, false, true);
 
-    */
     //end of test deferred shading pass
     glutSwapBuffers();
-
-    //get the current time
-    currentTime = glutGet(GLUT_ELAPSED_TIME);
-    //get the time since idle was last called
-    timeDifference = currentTime - previousTime;
-    counter++;
-
-    if (timeDifference > 100.0f) {
-        std::string FPS = std::to_string(timeDifference/counter);
-        std::string ms = std::to_string((timeDifference / counter) * 1000);
-        std::string newTitle = "It's Teapot Time! FPS: " + FPS + " ms: " + ms;
-        glutSetWindowTitle(newTitle.c_str());
-        //set previous time
-        previousTime = currentTime;
-        counter = 0;
-    }
-
 }
 
 //called when we want to initialize a depth map for use 
@@ -1147,50 +1127,72 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
     glBindVertexArray(vaoID);
 }
 
+void CalculateFPS() {
+   
+    frameCurrentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    frameTimeDifference = frameCurrentTime - framePreviousTime;
+    counter++;
+    if (frameTimeDifference > 0.25f) {
+        std::string FPS = std::to_string(counter/ frameTimeDifference);
+        std::string ms = std::to_string((counter/ frameTimeDifference) * 1000);
+        std::string newTitle = "It's Teapot Time! FPS: " + FPS + " ms: " + ms;
+        glutSetWindowTitle(newTitle.c_str());
+        //set previous time
+        framePreviousTime = frameCurrentTime;
+        counter = 0;
+    }
+}
+
 //idle callback 
 void OnIdle() {
 
+    CalculateFPS();
 
-    
+    //get the current time
+    currentTime = glutGet(GLUT_ELAPSED_TIME);
+    //get the time since idle was last called
+    timeDifference = currentTime - previousTime;
     //sets idle time for camera
     camera.SetDeltaSpeed(timeDifference);
 
-    //create an equalizing increment to effect animation, so that speed is constant
-    float animateIncrement = animateSpeed * timeDifference;
+        //create an equalizing increment to effect animation, so that speed is constant
+        float animateIncrement = animateSpeed * timeDifference;
 
-    //if object is idly rotation, increase rotation angle
-    if (teapotObject.rotating) {
-        angleInRadians += animateIncrement;
-    }
-
-    //slowly increment color values for each vertex on the mesh object over time
-    float colorSpeed = 0.0004f * timeDifference;
-    for (int i = 0; i < 3; i++) {
-        Color* color = colors[i];
-        if (color->active)
-        {
-            if (color->goingUp) {
-                color->value += colorSpeed;
-                if (color->value >= 1) {
-                    color->goingUp = false;
-                }
-            }
-            else {
-                color->value -= colorSpeed;
-                if (color->value <= 0) {
-                    color->goingUp = true;
-                }
-            }
-
+        //if object is idly rotation, increase rotation angle
+        if (teapotObject.rotating) {
+            angleInRadians += animateIncrement;
         }
-    }
 
-    //assign updated color values to the mesh teapot object
-    teapotInfo.object->SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
-    teapotObjectSecond.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
+        //slowly increment color values for each vertex on the mesh object over time
+        float colorSpeed = 0.0004f * timeDifference;
+        for (int i = 0; i < 3; i++) {
+            Color* color = colors[i];
+            if (color->active)
+            {
+                if (color->goingUp) {
+                    color->value += colorSpeed;
+                    if (color->value >= 1) {
+                        color->goingUp = false;
+                    }
+                }
+                else {
+                    color->value -= colorSpeed;
+                    if (color->value <= 0) {
+                        color->goingUp = true;
+                    }
+                }
+
+            }
+        }
+
+        //assign updated color values to the mesh teapot object
+        teapotInfo.object->SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
+        teapotObjectSecond.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
 
 
 
+    //set previous time
+    previousTime = currentTime;
     //now that GLUT is idle, tell GLUT that it needs to draw again
     glutPostRedisplay();
 }
@@ -1243,8 +1245,25 @@ void OnKeyPressed(unsigned char key, int x, int y) {
         //toggle object idle rotation
          teapotInfo.object->ToggleRotating();
     }
-    else if (key == 'u') {
-        renderScreenSpace = !renderScreenSpace;
+    else if (key == 'b') {
+        blurAO = !blurAO;
+        if (blurAO) { std::cout << "Enabled ambient occlusion blurring!" << std::endl; }
+        else { std::cout << "Disabled ambient occlusion blurring!" << std::endl; }
+    }
+    else if (key == 'o') {
+        renderAO = !renderAO;
+        if (renderAO) { std::cout << "Enabled ambient occlusion!" << std::endl; }
+        else { std::cout << "Disabled ambient occlusion!" << std::endl; }
+    }
+    else if (key == 'l') {
+        calculateLighting = !calculateLighting;
+        if (calculateLighting) { std::cout << "Enabled lighting!" << std::endl; }
+        else { std::cout << "Disabled lighting!" << std::endl; }
+    }
+    else if (key == 'm') {
+        useMultiAO = !useMultiAO;
+        if (useMultiAO) { std::cout << "Enabled MSSSAO!" << std::endl; }
+        else { std::cout << "Disabled MSSSAO!" << std::endl; }
     }
 }
 
@@ -1313,7 +1332,7 @@ void CreateCallbacks() {
 
 int main(int argc, char** argv)
 {
-
+    glfwSwapInterval(0);
     //initialize GLUT
     glutInit(&argc, argv);
 
@@ -1387,23 +1406,21 @@ int main(int argc, char** argv)
         wallObject.SetRotation(90.0f, 0.0f, 0.0f);
         wallObject.SetColor(0.1f, 0.6f, 0.8f);
 
-       //compile plane for SSAO render
         CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
         CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
+
+        CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
+        CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
 
         //compile plane for SSAO blurring shader
         CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
         CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
 
-        //compile plane for SSAO blurring shader
-        CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
-        CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
-
        //compile plane for final render - uses same object as above, just renders colors differently
-         CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
-         CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
-         planeObject.SetScale(20.0f);
-         planeObject.Rotate(90.0f, 0.0f, 0.0f);
+        CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
+        CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
+        planeObject.SetScale(20.0f);
+        planeObject.Rotate(90.0f, 0.0f, 0.0f);
 
        //compile plane for final screenspace lighting render
 
@@ -1414,8 +1431,8 @@ int main(int argc, char** argv)
         
        CompileShaders("lightModel.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
        CreateBuffers(lightModelInfo, lightMesh);
-        drawObjects.push_back(&lightModelInfo);
-        cubeObject.scale = (0.3f);
+       drawObjects.push_back(&lightModelInfo);
+       cubeObject.scale = (0.3f);
 
        //create gBuffers for deferrred shading 
        GenerateDeferredBuffers();

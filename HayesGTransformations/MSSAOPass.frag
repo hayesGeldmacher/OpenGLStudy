@@ -1,6 +1,5 @@
 #version 330 core
-//layout (location = 0) out float fragColor;
-out vec4 color;
+layout (location = 0) out float fragColor;
 
 in vec2 vTex;
 
@@ -84,14 +83,7 @@ float ComputeKernelSSAO(){
 		return totalOcclusion / 3.0; //divided by three cause we are using three resolutions
 }
 
-
-
 void main(){
-float fragColor = 0;
-
 	fragColor = ComputeKernelSSAO();
 	fragColor = 1 - fragColor;
-
-	//fragColor = pow(occlusion, power);
-	color = vec4(fragColor, fragColor, fragColor, 1.0f);
 }

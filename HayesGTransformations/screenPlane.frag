@@ -16,6 +16,8 @@ uniform vec3 lightPosition;
 uniform mat4 projection;
 
 uniform mat4 view;
+uniform int renderAO;
+uniform int calculateLighting;
 
 void main()
 {          
@@ -33,33 +35,43 @@ void main()
 	vec3 albedo = texture(gColorSpec, vTex).rgb;
 	float specularIntensity = texture(gColorSpec, vTex).a;
 	float occlusion = texture(AO, vTex).r;
+	
+	if(calculateLighting == 1){
+		//blinn-phong (in view space)
+		vec3 ambient;
+		if(renderAO == 1){
+			ambient = vec3(0.3f * albedo * occlusion);
+		}
+		else{
+			ambient = vec3(0.3f * albedo);
+		}
 
-	//blinn-phong (in view space)
-	vec3 ambient = vec3(0.3f * albedo * occlusion);
-	vec3 lighting = ambient;
-	vec3 viewDir = normalize(-fragPos); //in screenspace, viewpos 0,0,0
+		vec3 lighting = ambient;
+		vec3 viewDir = normalize(-fragPos); //in screenspace, viewpos 0,0,0
 
+		//get diffuse
+		vec3 lightDir = normalize(transformedLightPosition - fragPos);
+		vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 
-	//this is causing the bug - light pos is in worldspace, while frag pos is in world-view space
-	//get diffuse
-	vec3 lightDir = normalize(transformedLightPosition - fragPos);
-	vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
+		//get specular
+		vec3 halfwayDir = normalize(lightDir + viewDir);
+		float spec = pow(max(dot(normal, halfwayDir), 0.0), 8.0);
+		vec3 specular = lightColor * spec;
 
-	//get specular
-	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float spec = pow(max(dot(normal, halfwayDir), 0.0), 8.0);
-	vec3 specular = lightColor * spec;
+		//get attenuation
+		float dist = length(transformedLightPosition - fragPos);
+		float attenuation = 1.0 / (1.0 + Linear * dist + Quadratic * (dist * dist));
+		diffuse *= attenuation;
+		specular *= attenuation;
+		lighting += diffuse + specular;
 
-	//get attenuation
-	float dist = length(transformedLightPosition - fragPos);
-	float attenuation = 1.0 / (1.0 + Linear * dist + Quadratic * (dist * dist));
-	diffuse *= attenuation;
-	specular *= attenuation;
-	lighting += diffuse + specular;
-
-	color = vec4(lighting, 1.0f);
-
-	//for now, we are using just standard albedo
-   	color = vec4(vec3(normal) ,1.0f);
-	color *= occlusion;
+		color = vec4(lighting, 1.0f);
+	}
+	else{
+	
+		color = vec4(albedo, 1.0f);
+		if(renderAO == 1){
+			color *= occlusion;	
+		}
+	}
 }  
