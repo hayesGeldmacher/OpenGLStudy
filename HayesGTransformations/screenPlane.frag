@@ -40,7 +40,7 @@ void main()
 		//blinn-phong (in view space)
 		vec3 ambient;
 		if(renderAO == 1){
-			ambient = vec3(0.3f * albedo * occlusion);
+			ambient = vec3(0.1f * albedo * occlusion);
 		}
 		else{
 			ambient = vec3(0.3f * albedo);

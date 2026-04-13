@@ -95,6 +95,33 @@ ProgramInfo lightModelInfo(&cubeObject);
 //mesh used to load light model
 cy::TriMesh lightMesh;
 
+//program info the loading the pillar
+Object pillarObject("pillar.obj");
+ProgramInfo pillarInfo(&pillarObject);
+cy::TriMesh pillarMesh;
+
+//program info for load the dais
+Object daisObject("dais.obj");
+ProgramInfo daisInfo(&daisObject);
+cy::TriMesh daisMesh;
+
+Object ceilingObject("ceiling.obj");
+ProgramInfo ceilingInfo(&ceilingObject);
+cy::TriMesh ceilingMesh;
+
+Object angelObject("angel.obj");
+ProgramInfo angelInfo(&angelObject);
+cy::TriMesh angelMesh;
+
+Object angelObjectSecond("angel.obj");
+ProgramInfo angelInfoSecond(&angelObjectSecond);
+
+Object rockObject("rocks.obj");
+ProgramInfo rockInfo(&rockObject);
+cy::TriMesh rockMesh;
+
+
+
 #pragma endregion objectInformation
 
 #pragma region shadowInformation
@@ -133,7 +160,7 @@ ProgramInfo quadInfoShadow;
 #pragma endregion shadowInformation
 
 #pragma region lightInformation
-glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+glm::vec3 lightColor = glm::vec3(0.961, 0.875, 0.616);
 glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
 float ambientLightIntensity = 0.5f;
 static LightInfo lightInfo(lightColor, ambientColor, ambientLightIntensity);
@@ -1300,13 +1327,6 @@ void OnSpecialKeyPressed(int key, int x, int y) {
         camera.enabled = false;
     }
 
-    //sets active rotating camera to render plane instead of teapot
-    if (key == GLUT_KEY_ALT_L) {
-        std::cout << "Now rotating the plane!" << std::endl;
-        planeCamera.SetEnabled(true);
-        camera.SetEnabled(false);
-    }
-
     if (key == GLUT_KEY_DOWN) {
         SetAOPower(false);
     }
@@ -1395,38 +1415,65 @@ int main(int argc, char** argv)
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, *teapotInfo.object);
 
+       //compile test pillar 
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
+       CreateBuffers(pillarInfo, pillarMesh);
+       drawObjects.push_back(&pillarInfo);
+       pillarObject.SetScale(5.0f);
+       pillarObject.SetPosition(0, -15.0f, 0.0f);
+
+       //compile dais 
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
+       CreateBuffers(daisInfo, daisMesh);
+       drawObjects.push_back(&daisInfo);
+       daisObject.SetScale(5.0f);
+       daisObject.SetPosition(0.0f, -15.0f, 0.0f);
+
+       //compile ceiling
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
+       CreateBuffers(ceilingInfo, ceilingMesh);
+       drawObjects.push_back(&ceilingInfo);
+       ceilingObject.SetScale(5.0f);
+       ceilingObject.SetPosition(0, -15, 0);
+
+       //compile angel
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
+       CreateBuffers(angelInfo, angelMesh);
+       drawObjects.push_back(&angelInfo);
+       angelObject.SetScale(9.2f);
+       angelObject.SetPosition(-50.0f, -15.0f, -40.0f);
+       angelObject.Rotate(0.0f, 15.0f, 0.0f);
+
+       //compile second angel
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
+       CreateBuffers(angelInfoSecond, angelMesh);
+       drawObjects.push_back(&angelInfoSecond);
+       angelObjectSecond.SetScale(8.5f);
+       angelObjectSecond.SetPosition(28.0f, -15.0f, -58.0f);
+       angelObjectSecond.Rotate(0.0f, -25.0f, 0.0f);
+
+       //compile rocks 
+       CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
+       CreateBuffers(rockInfo, rockMesh);
+       drawObjects.push_back(&rockInfo);
+       rockObject.SetScale(7.0f);
+       rockObject.SetPosition(0.0f, -15.0f, -65.0f);
+
        //compile teapot for gBuffer
        CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotInfo.vao, teapotInfo.programID);
        CreateBuffers(teapotInfo, teapotMesh);
        drawObjects.push_back(&teapotInfo);
- 
-       //compile  second teapot for gBuffer
-         CompileShaders("ambientObject.vert", "AOBuffer.frag", teapotSecondInfo.vao, teapotSecondInfo.programID);
-         CreateBuffers(teapotSecondInfo, teapotMesh);
-         drawObjects.push_back(&teapotSecondInfo);
-
-       //set second teapot scale and position in worldspace
-        teapotObjectSecond.SetScale(0.65f);
-        teapotObjectSecond.SetPosition(0.0, -15, -20.0f);
+       teapotObject.SetScale(0.5f);
+       teapotObject.SetPosition(30, -15, 30.0f);
 
        //compile quad floor
         CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
         CreateBuffers(quadInfo, quadMesh);
         drawObjects.push_back(&quadInfo);
+
        //set plane position, scale, and color for the scene
         quadObject.SetScale(200.0f);
         quadObject.SetPosition(0.0f, -15.0f, 5.0f);
-        quadObject.SetColor(0.1f, 1.0f, 0.6f);
-
-        //compile wall
-        CompileShaders("ambientObject.vert", "AOBuffer.frag", wallInfo.vao, wallInfo.programID);
-        CreateBuffers(wallInfo, quadMesh);
-        drawObjects.push_back(&wallInfo);
-        //set wall position, scale, and color
-        wallObject.SetScale(25.0f);
-        wallObject.SetPosition(0.0f, 38.0f, -27.0f);
-        wallObject.SetRotation(90.0f, 0.0f, 0.0f);
-        wallObject.SetColor(0.1f, 0.6f, 0.8f);
 
         CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
         CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
