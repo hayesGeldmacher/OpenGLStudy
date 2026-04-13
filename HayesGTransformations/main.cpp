@@ -184,7 +184,9 @@ bool renderScreenSpace = true;
 //whether to render ambient occlusion
 bool renderAO = true;
 
-bool blurAO = true;
+bool blurAO = false;
+
+bool useMultiAO = true;
 
 //struct, generates perpective and orthographic matrices
 struct persProj {
@@ -238,6 +240,8 @@ std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag sha
 
 int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
 
+float timeDifference = 0.0f;
+unsigned int counter = 0;
 
 //called during onDisplay, sets all uniform shader variables
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -445,6 +449,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
 //called when GLUT draws something to screen
 void OnDisplay() {
 
+    
     glEnable(GL_DEPTH_TEST);
     //first geometry pass - render data to gbuffer
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
@@ -499,6 +504,23 @@ void OnDisplay() {
     */
     //end of test deferred shading pass
     glutSwapBuffers();
+
+    //get the current time
+    currentTime = glutGet(GLUT_ELAPSED_TIME);
+    //get the time since idle was last called
+    timeDifference = currentTime - previousTime;
+    counter++;
+
+    if (timeDifference > 100.0f) {
+        std::string FPS = std::to_string(timeDifference/counter);
+        std::string ms = std::to_string((timeDifference / counter) * 1000);
+        std::string newTitle = "It's Teapot Time! FPS: " + FPS + " ms: " + ms;
+        glutSetWindowTitle(newTitle.c_str());
+        //set previous time
+        previousTime = currentTime;
+        counter = 0;
+    }
+
 }
 
 //called when we want to initialize a depth map for use 
@@ -1129,12 +1151,7 @@ void CompileShaders(const char* vertName, const std::string &fragName, GLuint &v
 void OnIdle() {
 
 
-    //get the current time
-    currentTime = glutGet(GLUT_ELAPSED_TIME);
-
-    //get the time since idle was last called
-    float timeDifference = currentTime - previousTime;
-
+    
     //sets idle time for camera
     camera.SetDeltaSpeed(timeDifference);
 
@@ -1172,8 +1189,7 @@ void OnIdle() {
     teapotInfo.object->SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
     teapotObjectSecond.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
 
-    //set previous time
-    previousTime = currentTime;
+
 
     //now that GLUT is idle, tell GLUT that it needs to draw again
     glutPostRedisplay();
