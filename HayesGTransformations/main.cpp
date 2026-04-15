@@ -31,12 +31,11 @@
 #include "ImageLoader.h"
 #include "Object.h"
 #include "Material.h"
-//Hayes Geldmacher - 4/3/26
-//CS 6610 - Final Project WIP
+//Hayes Geldmacher - 4/16/26
+//CS 6610 - Final Project
 
 //Instructions/controls:
 /*
-   
     press 'p' to toggle perspective/orthographic projection
     press 'f' to toggle freelook/constrained camera viewing modes
 
@@ -49,18 +48,20 @@
         hold the right mouse button and drag to move the camera back or forth on the Z axis
         press/hold 'w', 's', 'a', 'd', to move forward, back, left, and right respectively
         press/hold 'q', 'e', to move up or down respectively
-        press '+', '-', to increase or decrease the movement speed
-
-    hold and release 'left alt' to switch active camera between teapot and render plane cameras
 
     hold and release 'let ctrl' to switch between camera mode and light rotation mode
         when in light rotation mode, moving the mouse will not spin the active camera
-        Instead, it will rotate the light diriection 
+        Instead, it will change the light diriection and position
 
-    press 'z' and 'x' to increase or decrease the specularity power of the light, respectively 
-    press 'r' to toggle the teapot and render plane idly spinning on all axes
+   Ambient Occlusion Controls:
+        press 'm' to toggle between naive SSAO and mult-scale SSAO
+        press 'b' to toggle AO blurring
+        press 'l' to toggle lighting
+        press the up and down keys to alter AO intensity
+        press the right and left keys to alter the AO bias
+        press the 'r' and 't' keys to alter the AO radius
+
     press 'f6' to recompile shaders
-
 */
 
 //screen width and height

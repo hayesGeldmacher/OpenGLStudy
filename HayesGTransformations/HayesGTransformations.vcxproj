@@ -128,12 +128,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="DrawObjects.cpp" />
     <ClCompile Include="GBuffer.cpp" />
     <ClCompile Include="LightInfo.cpp" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Object.cpp" />
+    <ClCompile Include="ShaderCompiler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ambientObject.frag" />
@@ -166,6 +168,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ColorInfo.h" />
+    <ClInclude Include="DrawObjects.h" />
     <ClInclude Include="GBuffer.h" />
     <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="LightInfo.h" />
@@ -173,6 +176,7 @@
     <ClInclude Include="Object.h" />
     <ClInclude Include="ProgramInfo.h" />
     <ClInclude Include="ProjectionInfo.h" />
+    <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Vertex.h" />
   </ItemGroup>

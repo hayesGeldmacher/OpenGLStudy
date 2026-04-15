@@ -39,6 +39,12 @@
     <ClCompile Include="GBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DrawObjects.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderCompiler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -76,6 +82,7 @@
     </None>
     <None Include="AOQuad.frag" />
     <None Include="AOBlur.frag" />
+    <None Include="MSSAOPass.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -110,6 +117,12 @@
     </ClInclude>
     <ClInclude Include="GBuffer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DrawObjects.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderCompiler.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
