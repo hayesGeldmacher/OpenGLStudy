@@ -5,6 +5,7 @@
 //cem yuksul libraries
 #include "cyCore.h"
 #include "cyTriMesh.h"
+#include "ShaderCompiler.h"
 #include "cyGL.h"
 
 struct ObjectHolder {
@@ -18,6 +19,8 @@ struct ObjectHolder {
 class DrawObjectsContainer {
 public:
 	std::vector<ObjectHolder> objectHolder;
-
+	std::vector<ProgramInfo*> drawObjects;
 	void InitializeObjects();
+
+
 };

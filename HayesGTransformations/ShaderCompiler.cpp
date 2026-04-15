@@ -160,6 +160,25 @@ void ShaderCompiler::CreateDeferredBuffer(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
+    //create the mesh from obj data
+    cy::TriMesh mesh;
+
+    //check if mesh was opened correctly
+    bool couldOpenPot = mesh.LoadFromFileObj(fileName);
+    if (couldOpenPot) {
+        std::cout << "opened teapot!" << std::endl;
+    }
+    else {
+        std::cout << "Could not open the teapot!" << std::endl;
+    }
+
+    return mesh;
+}
+
+void ShaderCompiler::CreateBuffers(ProgramInfo& programInfo, cy::TriMesh& mesh) {
+
+}
 
 float ShaderCompiler::Lerp(float a, float b, float f) {
     return a + f * (b - a);

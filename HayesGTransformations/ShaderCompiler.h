@@ -15,6 +15,10 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+//custom includes
+#include "ProgramInfo.h"
+#include "cyTriMesh.h"
+
 
 class ShaderCompiler {
 public:
@@ -26,7 +30,10 @@ public:
 
 	void CreateKernal();
 
-	bool CreateShadowMap();
+	void CreateBuffers(ProgramInfo&, cy::TriMesh&);
+
+	cy::TriMesh LoadObjectFile(const char*);
+
 
 	float Lerp(float, float, float);
 

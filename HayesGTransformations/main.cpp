@@ -179,9 +179,6 @@ glm::vec3 camUp(0.0f, 1.0f, 0.0f);
 //instace of camera class, generates view matrix
 Camera camera(camPos, camTarget, camUp);
 
-//instance of plane-specific camera 
-Camera planeCamera(camPos, camTarget, camUp);
-
 #pragma endregion cameraInformation
 
 #pragma region animationInformation
@@ -1036,8 +1033,6 @@ void OnMouse(int button, int state, int x, int y) {
     //send input to camera mouse button function
     camera.OnMouse(button, state, x, y);
 
-    planeCamera.OnMouse(button, state, x, y);
-
     lightInfo.OnMouse(button, state, x, y);
 
     //tell glut to re-render
@@ -1052,8 +1047,6 @@ void OnMouseMotion(int x, int y) {
 
     //send input to camera mouse motion function
     camera.OnMouseMotion(x, y);
-
-    planeCamera.OnMouseMotion(x, y);
 
     //tell glut to re-render
     glutPostRedisplay();
@@ -1103,8 +1096,6 @@ void OnKeyPressed(unsigned char key, int x, int y) {
 
     //send input to the camera
     camera.OnKeyBoard(key);
-
-    planeCamera.OnKeyBoard(key);
 
     //send input to the light
     lightInfo.OnKeyBoard(key);
