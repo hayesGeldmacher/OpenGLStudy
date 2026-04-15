@@ -19,6 +19,5 @@ class DrawObjectsContainer {
 public:
 	std::vector<ObjectHolder> objectHolder;
 
-	void CreateObjectsList();//creates list of objects with associated programs and meshes
-	void InitializeObjects();//compiles shaders
+	void InitializeObjects();
 };

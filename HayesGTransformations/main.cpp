@@ -24,6 +24,7 @@
 #include "cyGL.h"
 //Custom include files
 #include "Vertex.h"
+#include "ShaderCompiler.h"
 #include "Camera.h"
 #include "LightInfo.h"
 #include "ProgramInfo.h"
@@ -202,9 +203,6 @@ static float angleInRadians = 0.0f;
 #pragma endregion animationInformation
 
 #pragma region deferredRenderingInformation
-//deferred shading fields
-unsigned int gBuffer;
-unsigned int gPosition, gNormal, gColorSpec, depthMap;
 
 std::vector<ProgramInfo*> drawObjects;
 #pragma endregion deferredRenderingInformation
@@ -262,11 +260,6 @@ bool renderAO = true;
 bool blurAO = true;
 bool useMultiAO = true;
 bool calculateLighting = false;
-unsigned int AOFBO; //frame buffer objects for ssao buffer
-unsigned int AOColorBuffer; //color buffer for storing occlusion information
-unsigned int noiseTexture; //noise texture for tiling over screen with occlusion
-unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
-int kernelNumber = 64;
 
 //change the exaggeration of AO
 int AOPower = 1;
@@ -283,8 +276,9 @@ float AObias = 0.5f;
 int currentBiasLevel = 1;
 float biasLevels[4] = { 0.25, 0.5f, 0.75f, 1.0f };
 
+ShaderCompiler compiler;
 
-std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
+
 int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
 #pragma endregion AOInformation
 
@@ -441,27 +435,27 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
 
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(programInfo.programID, "gPosition"), 0);
-    glBindTexture(GL_TEXTURE_2D, gPosition);
+    glBindTexture(GL_TEXTURE_2D, compiler.gPosition);
 
     glActiveTexture(GL_TEXTURE1);
     glUniform1i(glGetUniformLocation(programInfo.programID, "gColorSpec"), 1);
-    glBindTexture(GL_TEXTURE_2D, gColorSpec);
+    glBindTexture(GL_TEXTURE_2D, compiler.gColorSpec);
 
     glActiveTexture(GL_TEXTURE2);
     glUniform1i(glGetUniformLocation(programInfo.programID, "gNormal"), 2);
-    glBindTexture(GL_TEXTURE_2D, gNormal);
+    glBindTexture(GL_TEXTURE_2D, compiler.gNormal);
 
     if (includeNoiseTexture) {
 
         //send the kernel samples to the shader
-        glUniform3fv(glGetUniformLocation(programInfo.programID, "samples"), kernelNumber, glm::value_ptr(kernel[0]));
+        glUniform3fv(glGetUniformLocation(programInfo.programID, "samples"), compiler.kernelNumber, glm::value_ptr(compiler.kernel[0]));
 
         //acccess tiling noise texture info
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, noiseTexture);
+        glBindTexture(GL_TEXTURE_2D, compiler.noiseTexture);
         glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
 
-        glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), kernelNumber);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), compiler.kernelNumber);
         glUniform1i(glGetUniformLocation(programInfo.programID, "power"), AOPower);
         glUniform1f(glGetUniformLocation(programInfo.programID, "bias"), AObias);
         glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AOradius);
@@ -471,7 +465,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
 
         glActiveTexture(GL_TEXTURE4);
         glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-        glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
+        glBindTexture(GL_TEXTURE_2D, compiler.AOColorBuffer);
     }
 
     if (includeLighting) {
@@ -479,8 +473,8 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             glUniform1i(glGetUniformLocation(programInfo.programID, "renderAO"), 1);
             glActiveTexture(GL_TEXTURE4);
             glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-            if(blurAO){ glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur); }
-            else{ glBindTexture(GL_TEXTURE_2D, AOColorBuffer); }
+            if(blurAO){ glBindTexture(GL_TEXTURE_2D, compiler.AOColorBufferBlur); }
+            else{ glBindTexture(GL_TEXTURE_2D, compiler.AOColorBuffer); }
             
         }
         else {
@@ -510,7 +504,7 @@ void OnDisplay() {
     
     glEnable(GL_DEPTH_TEST);
     //first geometry pass - render data to gbuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, compiler.gBuffer);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -529,7 +523,7 @@ void OnDisplay() {
     if (renderAO) {
 
        //second pass: use G-Buffer to render SSAO texture
-      glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
+      glBindFramebuffer(GL_FRAMEBUFFER, compiler.AOFBO);
       glClear(GL_COLOR_BUFFER_BIT);
       if (useMultiAO) { RenderScreenSpacePlane(resolutionPlaneInfo, true, false, false); }
       else { RenderScreenSpacePlane(screenPlaneInfo, true, false, false); }
@@ -537,7 +531,7 @@ void OnDisplay() {
 
       if (blurAO) {
         //third pass: blur SSAO texture
-        glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO); 
+        glBindFramebuffer(GL_FRAMEBUFFER, compiler.AOBlurFBO); 
         glClear(GL_COLOR_BUFFER_BIT);
         RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
       }
@@ -745,142 +739,6 @@ bool RenderToTexture() {
     //unbind render bufffer once we are done initializing it
     renderBuffer.Unbind();
     return true;
-}
-
-float Lerp(float a, float b, float f) {
-    return a + f * (b - a);
-}
-
-//creates the hemisphere kernal for sampling points around AO frag
-void CreateKernal() {
-
-    //create sample kernal of points in hemisphere oriented along z tanget vector
-    std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f); //creates random floats between 0 and 1
-    std::default_random_engine randGenerator; //declare instance of random num generator
-    for (unsigned int i = 0; i < kernelNumber; ++i) {
-        glm::vec3 sample(
-            randomFloats(randGenerator) * 2.0f - 1.0f,
-            randomFloats(randGenerator) * 2.0f - 1.0f,
-            randomFloats(randGenerator)//dont offset z, would create sphere instead of hemisphere
-        );
-
-        //weigh points more heavily as they are closer to the center fragmnent
-        float size = (float)i / kernelNumber;
-        size = Lerp(0.1f, 1.0f, size * size);
-        sample *= size;
-        kernel.push_back(sample);
-    }
-
-    //create random rotation noise data
-    std::vector<glm::vec3> AONoise;
-    for (unsigned int i = 0; i < 16; i++) {
-        glm::vec3 noise(
-            randomFloats(randGenerator) * 2.0f - 1.0f,
-            randomFloats(randGenerator) * 2.0f - 1.0f,
-            0.0f); //leave z at zero to rotate around z axis
-        AONoise.push_back(noise);
-    }
-
-    //create tiling 4x4 noise texture to overlay on the screen
-    
-    glGenTextures(1, &noiseTexture);
-    glBindTexture(GL_TEXTURE_2D, noiseTexture);
-    //fill texture with noise data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT, &AONoise[0]);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-}
-
-//creats the SSAO frame buffer object with color attachments
-void GenerateSSAOBuffer() {
-    
-    //first create the frame buffer for storing AO color
-    glGenFramebuffers(1, &AOFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, AOFBO);
-
-    glGenTextures(1, &AOColorBuffer);
-    glBindTexture(GL_TEXTURE_2D, AOColorBuffer);
-    //set to red because AO is greyscale component, only need the one color channel
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBuffer, 0);
-
-    //next create the frame buffer for blurring AO to remove random noise artifacts
-    glGenFramebuffers(1, &AOBlurFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, AOBlurFBO);
-
-    glGenTextures(1, &AOColorBufferBlur);
-    glBindTexture(GL_TEXTURE_2D, AOColorBufferBlur);
-    //also only need one color channel for ao blurring
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //set min and mag texture filtering
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, AOColorBufferBlur, 0);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-//generates color and depth attachments for deferred rendering gbuffer
-void GenerateDeferredBuffers() {
-
-    //generate and bind the gbuffers
-    glGenFramebuffers(1, &gBuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-
-    // setting up position color buffer
-    glGenTextures(1, &gPosition);
-    glBindTexture(GL_TEXTURE_2D, gPosition);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL); //creating the texture space
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //setting nearest neighbor filtering for minification
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // setting nearest neighbor filtering for magnification
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); //clamps so we dont oversample
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
-
-    // setting up normal color buffer
-    glGenTextures(1, &gNormal);
-    glBindTexture(GL_TEXTURE_2D, gNormal);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
-
-    // setting up specular and color buffer
-    glGenTextures(1, &gColorSpec);
-    glBindTexture(GL_TEXTURE_2D, gColorSpec);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gColorSpec, 0);
-
-    //position is 0 buffer, normal is 1 buffer, color is 2
-    // define which color attachments will be used for rendering;
-    unsigned int atttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-    glDrawBuffers(3, atttachments);
-
-    //generate depth map
-    glGenTextures(1, &depthMap);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
-
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cout << "warning! gbuffer did not finish compiling!" << std::endl;
-    }
-
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 //generates textures for given object
@@ -1100,80 +958,6 @@ void CreateScreenPlaneBuffers(GLuint& vbo) {
     //interpret tex coords data
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (GLvoid*)(sizeof(float) * 2));
-}
-
-//compiles shaders with given program and file information
-void CompileShaders(const char* vertName, const std::string &fragName, GLuint &vaoID, GLuint &programID) {
-
-    //manually compile vertex shader
-    std::ifstream fVert(vertName);
-    std::string file_contentsVert{ std::istreambuf_iterator<char>(fVert), std::istreambuf_iterator<char>() };
-    //create char array of correct length, copy string into char array
-    char* vsSource = new char[file_contentsVert.length() + 1];
-    std::strcpy(vsSource, file_contentsVert.c_str());
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    const GLchar* sourceChar = vsSource;
-    glShaderSource(vs, 1, &sourceChar, nullptr);
-    glCompileShader(vs);
-
-    //check vertex compilation success
-    GLint success;
-    GLchar infoLog[512];
-    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::VERTEX::COMPILATION_FAILED FOR:" << vertName <<
-            infoLog << std::endl;
-    }
-    else {
-        std::cout << "Vertex shader compilation successful for " << vertName << std::endl;
-    }
-
-    //compile fragment shader
-    std::ifstream fFrag(fragName);
-    std::string file_contentsFrag{ std::istreambuf_iterator<char>(fFrag), std::istreambuf_iterator<char>() };
-    char* fsSource = new char[file_contentsFrag.length() + 1];
-    std::strcpy(fsSource, file_contentsFrag.c_str());
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    const GLchar* fragChar = fsSource;
-    glShaderSource(fs, 1, &fragChar, nullptr);
-    glCompileShader(fs);
-
-    //get frag shader compilation success
-    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vs, 512, NULL, infoLog);
-        std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED FOR: " << fragName <<
-            infoLog << std::endl;
-    }
-    else {
-        std::cout << "Fragment shader compilation successful for " << fragName << std::endl;
-    }
-
-    //create and link program
-    programID = glCreateProgram();
-    glAttachShader(programID, vs);
-    glAttachShader(programID, fs);
-    glLinkProgram(programID);
-
-    glGetProgramiv(programID, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(programID, 512, NULL, infoLog);
-        std::cout << "ERROR: PROGRAM LINKING FAILED: " << infoLog << std::endl;
-    }
-    else {
-        std::cout << "program linking successful" << std::endl;
-    }
-
-    //use program and delete shader objects
-    glUseProgram(programID);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-    //create vertex array object before the buffer,
-    //stores the connections betwen a buffer and attributes for a particular object
-    glGenVertexArrays(1, &vaoID);
-    glBindVertexArray(vaoID);
 }
 
 void CalculateFPS() {
@@ -1466,18 +1250,19 @@ int main(int argc, char** argv)
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
 
+        
        //center teapot, set rot, pos, and scale
        InitializeObject(teapotMesh, *teapotInfo.object);
 
        //compile test pillar 
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
        CreateBuffers(pillarInfo, pillarMesh);
        drawObjects.push_back(&pillarInfo);
        pillarObject.SetScale(5.0f);
        pillarObject.SetPosition(0, -15.0f, 0.0f);
 
        //compile dais 
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
        CreateBuffers(daisInfo, daisMesh);
        drawObjects.push_back(&daisInfo);
        daisObject.SetScale(5.0f);
@@ -1485,14 +1270,14 @@ int main(int argc, char** argv)
        daisObject.Rotate(0.0f, 90.0f, 0.0f);
 
        //compile ceiling
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
        CreateBuffers(ceilingInfo, ceilingMesh);
        drawObjects.push_back(&ceilingInfo);
        ceilingObject.SetScale(5.0f);
        ceilingObject.SetPosition(0, -15, 0);
 
        //compile angel
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
        CreateBuffers(angelInfo, angelMesh);
        drawObjects.push_back(&angelInfo);
        angelObject.SetScale(9.2f);
@@ -1500,7 +1285,7 @@ int main(int argc, char** argv)
        angelObject.Rotate(0.0f, 15.0f, 0.0f);
 
        //compile second angel
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
        CreateBuffers(angelInfoSecond, angelMesh);
        drawObjects.push_back(&angelInfoSecond);
        angelObjectSecond.SetScale(8.5f);
@@ -1508,14 +1293,14 @@ int main(int argc, char** argv)
        angelObjectSecond.Rotate(0.0f, -25.0f, 0.0f);
 
        //compile rocks 
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
        CreateBuffers(rockInfo, rockMesh);
        drawObjects.push_back(&rockInfo);
        rockObject.SetScale(7.0f);
        rockObject.SetPosition(-4.0f, -20.0f, -65.0f);
 
        //compile vases
-       CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
        CreateBuffers(vaseInfo, vaseMesh);
        drawObjects.push_back(&vaseInfo);
        vaseObject.SetScale(7.0f);
@@ -1523,7 +1308,7 @@ int main(int argc, char** argv)
        vaseObject.Rotate(0.0f, -45.0f, 0.0f);
 
        //compile quad floor
-        CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
         CreateBuffers(quadInfo, quadMesh);
         drawObjects.push_back(&quadInfo);
 
@@ -1531,18 +1316,18 @@ int main(int argc, char** argv)
         quadObject.SetScale(200.0f);
         quadObject.SetPosition(0.0f, -15.0f, 5.0f);
 
-        CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+        compiler.CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
         CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
 
-        CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
+        compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
         CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
 
         //compile plane for SSAO blurring shader
-        CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
+        compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
         CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
 
        //compile plane for final render - uses same object as above, just renders colors differently
-        CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
+       compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
         CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
         planeObject.SetScale(20.0f);
         planeObject.Rotate(90.0f, 0.0f, 0.0f);
@@ -1554,19 +1339,18 @@ int main(int argc, char** argv)
        lightModelInfo.object->hasTexCoords = false;
        lightModelInfo.object->hasTextures = false;
         
-       CompileShaders("ambientObject.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
+       compiler.CompileShaders("ambientObject.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
        CreateBuffers(lightModelInfo, lightMesh);
        drawObjects.push_back(&lightModelInfo);
        cubeObject.scale = (0.3f);
 
        //create gBuffers for deferrred shading 
-       GenerateDeferredBuffers();
+       compiler.CreateDeferredBuffer(width, height);
 
-       //generate SSAO buffer for storing occlusion information
-        GenerateSSAOBuffer();
+       compiler.CreateSSAOBuffer( width, height);
 
        //create the kernals for sampling depth values for SSAO
-        CreateKernal();
+        compiler.CreateKernal();
 
        //initialize light position
         lightInfo.lightPosition = camera.GetPosition();
