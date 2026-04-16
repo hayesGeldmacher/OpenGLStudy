@@ -55,6 +55,7 @@
         press 'm' to toggle between naive SSAO and mult-scale SSAO
         press 'b' to toggle AO blurring
         press 'l' to toggle lighting
+        press 'y' to toggle object textures
         press the up and down keys to alter AO intensity
         press the right and left keys to alter the AO bias
         press the 'r' and 't' keys to alter the AO radius
@@ -705,19 +706,19 @@ int main(int argc, char** argv)
     container.InitializeObjects();
 
     //compile screen space plane for naive ssao 
-    compiler.CompileShaders("screenPlane.vert", "SSAO.frag", AO.screenPlaneInfo.vao, AO.screenPlaneInfo.programID);
+    compiler.CompileShaders("shaders/screenPlane.vert", "shaders/SSAO.frag", AO.screenPlaneInfo.vao, AO.screenPlaneInfo.programID);
     CreateScreenPlaneBuffers(AO.screenPlaneInfo.vbo);
 
     //compile screen space plane for mutli scale ssao 
-    compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", AO.resolutionPlaneInfo.vao, AO.resolutionPlaneInfo.programID);
+    compiler.CompileShaders("shaders/screenPlane.vert", "shaders/MSSAOPass.frag", AO.resolutionPlaneInfo.vao, AO.resolutionPlaneInfo.programID);
     CreateScreenPlaneBuffers(AO.resolutionPlaneInfo.vbo);
 
     //compile screen space plane for SSAO blurring shader
-    compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", AO.blurPlaneInfo.vao, AO.blurPlaneInfo.programID);
+    compiler.CompileShaders("shaders/screenPlane.vert", "shaders/AOBlur.frag", AO.blurPlaneInfo.vao, AO.blurPlaneInfo.programID);
     CreateScreenPlaneBuffers(AO.blurPlaneInfo.vbo);
 
     //compile screen space plane for final lighting render
-    compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", AO.renderPlaneInfo.vao, AO.renderPlaneInfo.programID);
+    compiler.CompileShaders("shaders/screenPlane.vert", "shaders/screenPlane.frag", AO.renderPlaneInfo.vao, AO.renderPlaneInfo.programID);
     CreateScreenPlaneBuffers(AO.renderPlaneInfo.vbo);
 
     //create gBuffers for deferrred shading 

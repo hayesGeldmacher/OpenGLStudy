@@ -12,7 +12,6 @@
 #include "cyTriMesh.h"
 #include "cyGL.h"
 #include "Vertex.h"
-#include "Material.h"
 //custom include
 
 //Hayes Geldmacher
@@ -67,8 +66,6 @@ public:
 	//the mesh this object is loading
 	cy::TriMesh* mesh;
 
-	Material* mat; 
-
 	const char* objectFileName;
 
 
@@ -77,7 +74,6 @@ public:
 	//should this object use a cy::mesh or a vert array for its buffer
 	bool useMesh = true;
 	//defaults to an array of planes
-
 
 	bool hasNormals = true;
 	bool hasTexCoords = true;
@@ -90,20 +86,6 @@ public:
 
 	//stores color
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-
-	float planeArrayFlipped[48] = {
-
-		//vertex position	   //normals			//tex coordinates
-		 5.0f,  0.0f, 5.0f,    0.0f, 1.0f, 0.0f,    1.0f, 1.0f,
-		 5.0f, 0.0f, -5.0f,	   0.0f, 1.0f, 0.0f,	 1.0f, 0.0f,
-		-5.0f, 0.0f, -5.0f,	   0.0f, 1.0f, 0.0f,    0.0f, 0.0f,
-
-		-5.0f,  0.0f, -5.0f,   0.0f, 1.0f, 0.0f,    0.0f, 0.0f,
-		-5.0f,  0.0f, 5.0f,	   0.0f, 1.0f, 0.0f,	 0.0f, 1.0f,
-		 5.0f,  0.0f, 5.0f,	   0.0f, 1.0f, 0.0f,	 1.0f, 1.0f
-	};
-
 
 	//vector of vertex structs, stores pos, normal, and coord data in loaded mesh
 	static std::vector<Vertex> vertexData;
