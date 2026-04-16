@@ -89,6 +89,7 @@ ProgramInfo depthDisplayInfo;
 ProgramInfo teapotSecondShadow;
 
 ProgramInfo quadInfoShadow;
+
 #pragma endregion shadowInformation
 
 #pragma region lightInformation
@@ -161,6 +162,55 @@ unsigned int counter = 0.0f;
 DrawObjectsContainer container;
 ShaderCompiler compiler;
 AOInfo AO;
+
+
+void SetUniformEnvironment(ProgramInfo& programInfo, WorldTransform& object, Camera& camera) {
+
+
+    //generate view matrix from camera
+    //remove translation from the env cube matrix, so it only corresponds to rotation
+    glm::mat4 camViewMat = glm::mat4(glm::mat3(camera.GetMatrix()));
+
+    //generate perpsective/ortho projection matrix
+    glm::mat4 projMat = projInfo.GetProjection();
+
+    glm::mat4 worldMat = cubeObject.GetMat();
+
+    GLint uniformLocation;
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "view");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+
+    //send the projection variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "projection");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(programInfo.programID, "world");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMat[0][0]);
+}
+
+
+void RenderEnvironment() {
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+
+    //render cube
+    glUseProgram(container.CubeTarget()->programID);
+    glBindVertexArray(container.CubeTarget()->vao);
+
+    //SetUniformAttributesTransformations(cubeInfo, cubeObject, planeCamera);
+    SetUniformEnvironment(*container.CubeTarget(), container.CubeTarget()->object, camera);
+
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, container.CubeTarget()->texIDDiffuse);
+    glDrawArrays(GL_TRIANGLES, 0, 12);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+
+    renderBuffer.BindTexture(0);
+}
 
 //set uniform lighting attributes
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
@@ -597,14 +647,11 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
                 GL_UNSIGNED_BYTE,  //data type
                 image //pixel array data
             );
-
-
         }
         else {
             std::cout << "failed to load image at path: " << faceNames[i] << std::endl;
             stbi_image_free(image);
         }
-
     }
     
     //next, generate a few mipmaps
@@ -795,7 +842,7 @@ void OnSpecialKeyPressedUp(int key, int x, int y) {
         lightInfo.SetPressingButton(false);
         camera.enabled = true;
     }
-
+    
     //tell glut to re-render
     glutPostRedisplay();
 }
@@ -862,6 +909,22 @@ int main(int argc, char** argv)
 
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
+
+   
+    //set up cubemap shaders and buffer
+    container.InitializeCubemap();
+
+    //create array of texture face filenames
+    std::vector<std::string> faceNames = {
+         "cubemap_posx.png",
+        "cubemap_negx.png",
+        "cubemap_posy.png",
+        "cubemap_negy.png",
+        "cubemap_posz.png",
+        "cubemap_negz.png",
+    };
+
+    BindCubeMapTextures(container.CubeTarget()->texIDDiffuse, faceNames);
 
     //set up list of all standard objects to rendered in the scene
     container.InitializeObjects();

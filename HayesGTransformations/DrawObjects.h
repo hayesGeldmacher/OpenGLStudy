@@ -3,6 +3,8 @@
 #include "Object.h"
 #include "ProgramInfo.h"
 #include "ShaderCompiler.h"
+#include "Camera.h"
+#include "ProjectionInfo.h"
 //cem yuksul libraries
 #include "cyCore.h"
 #include "cyTriMesh.h"
@@ -14,7 +16,10 @@ class DrawObjectsContainer {
 public:
 	std::vector<ProgramInfo*> drawObjects;
 	void InitializeObjects();
+	void InitializeCubemap();
+	void SetUniformEnvironment(Camera&, persProj&);
 	ProgramInfo* CameraTarget();
+	ProgramInfo* CubeTarget();
 	ShaderCompiler compiler;
 
 };

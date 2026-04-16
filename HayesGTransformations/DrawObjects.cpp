@@ -57,6 +57,10 @@ Object vaseObject("vases.obj");
 ProgramInfo vaseInfo(&vaseObject);
 cy::TriMesh vaseMesh;
 
+Object cubeObject("cube.obj");
+ProgramInfo cubeInfo;
+cy::TriMesh cubeMesh;
+
 #pragma endregion objectInformation
 
 void DrawObjectsContainer::InitializeObjects() {
@@ -125,6 +129,47 @@ void DrawObjectsContainer::InitializeObjects() {
     planeObject.Rotate(90.0f, 0.0f, 0.0f);
 }
 
+void DrawObjectsContainer::InitializeCubemap() {
+    compiler.CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
+    cubeInfo.object->hasNormals = false;
+    cubeInfo.object->hasTexCoords = false;
+    cubeInfo.object->hasTextures = false;
+    compiler.CreateBuffers(cubeInfo, cubeMesh);
+    cubeObject.SetScale(2.0f); //create cubemap to be very large
+}
+
 ProgramInfo* DrawObjectsContainer::CameraTarget() {
     return &daisInfo;
 }
+
+ProgramInfo* DrawObjectsContainer::CubeTarget() {
+    return &cubeInfo;
+}
+
+void DrawObjectsContainer::SetUniformEnvironment(Camera& camera, persProj& projInfo) {
+
+
+    //generate view matrix from camera
+    //remove translation from the env cube matrix, so it only corresponds to rotation
+    glm::mat4 camViewMat = glm::mat4(glm::mat3(camera.GetMatrix()));
+
+    //generate perpsective/ortho projection matrix
+    glm::mat4 projMat = projInfo.GetProjection();
+
+    glm::mat4 worldMat = cubeObject.GetMat();
+
+    GLint uniformLocation;
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(cubeInfo.programID, "view");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+
+    //send the projection variable
+    uniformLocation = glGetUniformLocation(cubeInfo.programID, "projection");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &projMat[0][0]);
+
+    //send the camera view variable
+    uniformLocation = glGetUniformLocation(cubeInfo.programID, "world");
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMat[0][0]);
+}
+
