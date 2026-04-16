@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AOInfo.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DrawObjects.cpp" />
     <ClCompile Include="GBuffer.cpp" />
@@ -166,10 +167,12 @@
     <None Include="shadowMap.vert" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AOInfo.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ColorInfo.h" />
     <ClInclude Include="DrawObjects.h" />
     <ClInclude Include="GBuffer.h" />
+    <ClInclude Include="Header.h" />
     <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="LightInfo.h" />
     <ClInclude Include="Material.h" />

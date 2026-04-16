@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "ShaderCompiler.h"
 
+//compile shaders and store in provided program ID
 void ShaderCompiler::CompileShaders(const char* vertName, const std::string& fragName, GLuint& vaoID, GLuint& programID) {
     //manually compile vertex shader
     std::ifstream fVert(vertName);
@@ -59,7 +60,7 @@ void ShaderCompiler::CompileShaders(const char* vertName, const std::string& fra
         std::cout << "ERROR: PROGRAM LINKING FAILED: " << infoLog << std::endl;
     }
     else {
-        std::cout << "program linking successful" << std::endl;
+        std::cout << "program linking successful for: " << vertName << " and " << fragName << std::endl;
     }
 
     //use program and delete shader objects
@@ -73,6 +74,7 @@ void ShaderCompiler::CompileShaders(const char* vertName, const std::string& fra
     glBindVertexArray(vaoID);
 }
 
+//create buffer texture attachments for ambient occlusion
 void ShaderCompiler::CreateSSAOBuffer(int width, int height) {
     //creats the SSAO frame buffer object with color attachments
 
@@ -105,6 +107,7 @@ void ShaderCompiler::CreateSSAOBuffer(int width, int height) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+//create gbuffer texture attachments for deferred shading
 void ShaderCompiler::CreateDeferredBuffer(int width, int height) {
     //generate and bind the gbuffers
     glGenFramebuffers(1, &gBuffer);
@@ -160,6 +163,7 @@ void ShaderCompiler::CreateDeferredBuffer(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+//center and scale a mesh object
 void ShaderCompiler::InitializeObject(cy::TriMesh& mesh, Object& object) {
     //compute the bounding box to center the object in local space
     mesh.ComputeBoundingBox();
@@ -172,10 +176,11 @@ void ShaderCompiler::InitializeObject(cy::TriMesh& mesh, Object& object) {
 
     //set object starting position, rotation, scale
     object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetPosition(0.0, 8.0f, 0.0f);
+    object.SetPosition(0.0, 0.0f, 0.0f);
     object.SetScale(1.0f);
 }
 
+//load obj information into a cy::mesh
 cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
     //create the mesh from obj data
     cy::TriMesh mesh;
@@ -192,6 +197,7 @@ cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
     return mesh;
 }
 
+//create buffers for standard objects with obj meshes
 void ShaderCompiler::CreateBuffers(ProgramInfo& programInfo, cy::TriMesh& mesh) {
 
     Object* object = programInfo.object;
@@ -213,8 +219,6 @@ void ShaderCompiler::CreateBuffers(ProgramInfo& programInfo, cy::TriMesh& mesh) 
         const cy::TriMesh::TriFace& face = mesh.F(i);
         const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
         const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
-
-        if (i == 0) { std::cout << "DOES HAVE NORMALS? " << object->objectFileName << "" << hasNormals << std::endl; }
 
         for (int c = 0; c < 3; c++) {
             // store position data
@@ -268,11 +272,13 @@ void ShaderCompiler::CreateBuffers(ProgramInfo& programInfo, cy::TriMesh& mesh) 
     }
 }
 
+//helper function for creating sampling kernals
 float ShaderCompiler::Lerp(float a, float b, float f) {
     return a + f * (b - a);
 }
 
-void ShaderCompiler::CreateKernal() {
+//create random sampling kernels
+void ShaderCompiler::CreateKernel() {
     //creates the hemisphere kernal for sampling points around AO frag
 
         //create sample kernal of points in hemisphere oriented along z tanget vector
@@ -303,7 +309,6 @@ void ShaderCompiler::CreateKernal() {
         }
 
         //create tiling 4x4 noise texture to overlay on the screen
-
         glGenTextures(1, &noiseTexture);
         glBindTexture(GL_TEXTURE_2D, noiseTexture);
         //fill texture with noise data

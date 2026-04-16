@@ -8,17 +8,16 @@
   in vec3 fragPos;
   in vec3 vNormal;
 
-  uniform float specShine;
   uniform vec3 objectColor;
-
 
 void main()
 {             
 	//store position of the fragment in the first gBuffer texture
 	gPosition = fragPos;
 
+	//store normals in texture
 	gNormal = normalize(vNormal);
 
-	//store diffuse color
+	//store diffuse color in texture
 	gColorSpec.rgb = vec3(objectColor);
 }  

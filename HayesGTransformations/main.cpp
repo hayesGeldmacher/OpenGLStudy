@@ -23,16 +23,14 @@
 #include "cyTriMesh.h"
 #include "cyGL.h"
 //Custom include files
-#include "Vertex.h"
 #include "ShaderCompiler.h"
 #include "Camera.h"
 #include "LightInfo.h"
 #include "ProgramInfo.h"
-#include "ColorInfo.h"
 #include "ImageLoader.h"
 #include "Object.h"
-#include "Material.h"
 #include "DrawObjects.h"
+#include "AOInfo.h"
 //Hayes Geldmacher - 4/16/26
 //CS 6610 - Final Project
 
@@ -70,10 +68,6 @@
 const static int width = 800;
 const static int height = 800;
 
-//declare objects and programs
-#pragma region objectInformation
-//instance of world object transform class for the screenspace render plane
-
 #pragma region shadowInformation
 
 //struct containing shadow & depth map information
@@ -94,18 +88,6 @@ ProgramInfo depthDisplayInfo;
 //program info for second teapot second pass using shadow map
 ProgramInfo teapotSecondShadow;
 
-//program info getting SSAO to the screen
-ProgramInfo screenPlaneInfo;
-
-ProgramInfo blurPlaneInfo;
-
-//program info for getting final render to the scren
-ProgramInfo renderPlaneInfo;
-
-ProgramInfo resolutionPlaneInfo;
-
-//the render buffer used for render-to-texture
-cy::GLRenderTexture2D renderBuffer;
 ProgramInfo quadInfoShadow;
 #pragma endregion shadowInformation
 
@@ -126,29 +108,9 @@ Camera camera(camPos, camTarget, camUp);
 
 #pragma endregion cameraInformation
 
-#pragma region animationInformation
-//create a color for R,G,B, and store in an array
-Color red(0.5, true, true);
-Color blue(1, false, true);
-Color green(0.2, false, true);
-
-Color* colors[] = { &red, &blue, &green };
-glm::vec3 objectColor = glm::vec3(1.0f, 1.0f, 1.0f);
-
 //animation time-tracking
 float currentTime = 0;
 float previousTime = 0;
-float animateSpeed = 5000.0f;
-//float used for idle animations of mesh teapot
-static float angleInRadians = 0.0f;
-
-#pragma endregion animationInformation
-
-#pragma region deferredRenderingInformation
-
-std::vector<ProgramInfo*> drawObjects;
-#pragma endregion deferredRenderingInformation
-
 
 //struct, generates perpective and orthographic matrices
 struct persProj {
@@ -196,36 +158,11 @@ float framePreviousTime = 0.0f;
 float frameTimeDifference = 0.0f;
 unsigned int counter = 0.0f;
 
-#pragma region AOInformation
-//whether to render ambient occlusion
-bool renderAO = true;
-bool blurAO = true;
-bool useMultiAO = true;
-bool calculateLighting = false;
-
-//change the exaggeration of AO
-int AOPower = 1;
-int currentOcclusionLevel = 0;
-int occlusionPowerLevels[4] = { 1.0f, 2.0f, 4.0f, 8.0f };
-
-//change the radius for AO
-float AOradius = 2.0f; 
-int currentRadiusLevel = 1;
-float radiusLevels[4] = { 0.5f, 2.0f, 3.5f, 5.0f };
-
-//change the radius for AO
-float AObias = 0.5f; 
-int currentBiasLevel = 1;
-float biasLevels[4] = { 0.25, 0.5f, 0.75f, 1.0f };
-
 DrawObjectsContainer container;
 ShaderCompiler compiler;
+AOInfo AO;
 
-
-int influenceRadius = 4; //how global the AO is, how many resolutions are sampled
-#pragma endregion AOInformation
-
-//called during onDisplay, sets all uniform shader variables
+//set uniform lighting attributes
 void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
 
     GLint uniformLocation;
@@ -250,10 +187,9 @@ void SetUniformAttributesLighting(GLuint &program, Camera &camera) {
     //set reflection very high for now
     uniformLocation = glGetUniformLocation(program, "reflectiveStrength");
     glUniform1f(uniformLocation, 0.65f);
-
 }
 
-//sets MVP-related uniform variables
+//sets MVP uniform variables
 void SetUniformAttributesTransformations(ProgramInfo &programInfo, Camera &camera, bool flipped) {
     
     //generate view matrix from camera
@@ -337,30 +273,7 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, bool useTextures
     glDrawArrays(GL_TRIANGLES, 0, programInfo.object->facesNumber);
 }
 
-void SetDeferredLighting(ProgramInfo& programInfo, Camera& camera) {
-    
-    //set uniform attributes
-    GLint uniformLocation;
-
-    //update the uniform light color in the frag shader
-    glm::vec3 lightColor = lightInfo.lightColor;
-    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "lightColor");
-    glUniform3f(uniformLocation, lightColor.x, lightColor.y, lightColor.z);
-
-    //update uniform specular shininess exponent in the frag shader
-    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "specShine");
-    glUniform1f(uniformLocation, lightInfo.shine);
-
-    glm::vec3 lightPosition = lightInfo.lightPosition;
-    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "lightPosition");
-    glUniform3f(uniformLocation, lightPosition.x, lightPosition.y, lightPosition.z);
-
-    glm::vec3 viewPos = camera.GetPosition();
-    uniformLocation = glGetUniformLocation(screenPlaneInfo.programID, "viewPos");
-    glUniform3f(uniformLocation, viewPos.x, viewPos.y, viewPos.z);
-
-}
-
+//draws screen space quad
 void RenderScreenQuad(ProgramInfo& programInfo) {
     glBindVertexArray(programInfo.vao);
     glDisable(GL_DEPTH_TEST);
@@ -371,11 +284,13 @@ void RenderScreenQuad(ProgramInfo& programInfo) {
 void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, bool includeAOTexture, bool includeLighting) {
    
     glUseProgram(programInfo.programID);
-
+    
+    //send projection information
     glm::mat4 projMat = projInfo.GetProjection();
     GLuint projectionLocation = glGetUniformLocation(programInfo.programID, "projection");
     glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, &projMat[0][0]);
 
+    //send gbuffer data as uniform textures
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(programInfo.programID, "gPosition"), 0);
     glBindTexture(GL_TEXTURE_2D, compiler.gPosition);
@@ -388,6 +303,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
     glUniform1i(glGetUniformLocation(programInfo.programID, "gNormal"), 2);
     glBindTexture(GL_TEXTURE_2D, compiler.gNormal);
 
+    //does this pass need random noise? 
     if (includeNoiseTexture) {
 
         //send the kernel samples to the shader
@@ -398,25 +314,28 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         glBindTexture(GL_TEXTURE_2D, compiler.noiseTexture);
         glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
 
+        //send uniform variables to control AO
         glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), compiler.kernelNumber);
-        glUniform1i(glGetUniformLocation(programInfo.programID, "power"), AOPower);
-        glUniform1f(glGetUniformLocation(programInfo.programID, "bias"), AObias);
-        glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AOradius);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "power"), AO.AOPower);
+        glUniform1f(glGetUniformLocation(programInfo.programID, "bias"), AO.AObias);
+        glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AO.AOradius);
     }
  
     if (includeAOTexture) {
 
+        //send AO info as uniform texture
         glActiveTexture(GL_TEXTURE4);
         glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
         glBindTexture(GL_TEXTURE_2D, compiler.AOColorBuffer);
     }
 
+    //is this render calculating lighting
     if (includeLighting) {
-        if (renderAO) {
+        if (AO.renderAO) {
             glUniform1i(glGetUniformLocation(programInfo.programID, "renderAO"), 1);
             glActiveTexture(GL_TEXTURE4);
             glUniform1i(glGetUniformLocation(programInfo.programID, "AO"), 4);
-            if(blurAO){ glBindTexture(GL_TEXTURE_2D, compiler.AOColorBufferBlur); }
+            if(AO.blurAO){ glBindTexture(GL_TEXTURE_2D, compiler.AOColorBufferBlur); }
             else{ glBindTexture(GL_TEXTURE_2D, compiler.AOColorBuffer); }
             
         }
@@ -424,7 +343,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             glUniform1i(glGetUniformLocation(programInfo.programID, "renderAO"), 0);
         }
         
-        if (calculateLighting) {
+        if (AO.calculateLighting) {
             SetUniformAttributesLighting(programInfo.programID, camera);
             glm::mat4 camViewMat = camera.GetMatrix();
             GLint uniformLocation;
@@ -437,7 +356,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 0);
         }
     }
-
+    //draw screen space quad
     RenderScreenQuad(programInfo);
 }
 
@@ -463,27 +382,27 @@ void OnDisplay() {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    if (renderAO) {
+    if (AO.renderAO) {
 
        //second pass: use G-Buffer to render SSAO texture
       glBindFramebuffer(GL_FRAMEBUFFER, compiler.AOFBO);
       glClear(GL_COLOR_BUFFER_BIT);
-      if (useMultiAO) { RenderScreenSpacePlane(resolutionPlaneInfo, true, false, false); }
-      else { RenderScreenSpacePlane(screenPlaneInfo, true, false, false); }
+      if (AO.useMultiAO) { RenderScreenSpacePlane(AO.resolutionPlaneInfo, true, false, false); }
+      else { RenderScreenSpacePlane(AO.screenPlaneInfo, true, false, false); }
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-      if (blurAO) {
+      if (AO.blurAO) {
         //third pass: blur SSAO texture
         glBindFramebuffer(GL_FRAMEBUFFER, compiler.AOBlurFBO); 
         glClear(GL_COLOR_BUFFER_BIT);
-        RenderScreenSpacePlane(blurPlaneInfo, false, true, false);
+        RenderScreenSpacePlane(AO.blurPlaneInfo, false, true, false);
       }
     }
 
     //fourth pass: use g-buffer to calculate scene lighting
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-    RenderScreenSpacePlane(renderPlaneInfo, false, false, true);
+    RenderScreenSpacePlane(AO.renderPlaneInfo, false, false, true);
 
     //end of test deferred shading pass
     glutSwapBuffers();
@@ -792,48 +711,6 @@ void OnMouseMotion(int x, int y) {
     glutPostRedisplay();
 }
 
-//alters radius of AO
-void SetAORadius(bool up) {
-    if (up) {
-        currentRadiusLevel++;
-        if (currentRadiusLevel >= 4) { currentRadiusLevel = 3; }
-    }
-    else {
-        currentRadiusLevel--;
-        if (currentRadiusLevel < 0) { currentRadiusLevel = 0; }
-    }
-    AOradius = radiusLevels[currentRadiusLevel];
-    std::cout << "set AO radius to: " << AOradius << std::endl;
-}
-
-//alters bias of AO
-void SetAOBias(bool up) {
-    if (up) {
-        currentBiasLevel++;
-        if (currentBiasLevel >= 4) { currentBiasLevel = 3; }
-    }
-    else {
-        currentBiasLevel--;
-        if (currentBiasLevel < 0) { currentBiasLevel = 0; }
-    }
-    AObias = biasLevels[currentBiasLevel];
-    std::cout << "set AO bias to: " << AObias << std::endl;
-}
-
-//alters intensity of AO
-void SetAOPower(bool up) {
-    if (up) {
-        currentOcclusionLevel++;
-        if (currentOcclusionLevel >= 4) { currentOcclusionLevel = 3; }
-    }
-    else {
-        currentOcclusionLevel--;
-        if (currentOcclusionLevel < 0) { currentOcclusionLevel = 0; }
-    }
-    AOPower = occlusionPowerLevels[currentOcclusionLevel];
-    std::cout << "set AO power to: " << AOPower << std::endl;
-}
-
 //GLUT callback for standard key input
 void OnKeyPressed(unsigned char key, int x, int y) {
 
@@ -848,30 +725,30 @@ void OnKeyPressed(unsigned char key, int x, int y) {
         projInfo.ToggleProjection();
     }
     else if (key == 'b') {
-        blurAO = !blurAO;
-        if (blurAO) { std::cout << "Enabled ambient occlusion blurring!" << std::endl; }
+        AO.blurAO = !AO.blurAO;
+        if (AO.blurAO) { std::cout << "Enabled ambient occlusion blurring!" << std::endl; }
         else { std::cout << "Disabled ambient occlusion blurring!" << std::endl; }
     }
     else if (key == 'o') {
-        renderAO = !renderAO;
-        if (renderAO) { std::cout << "Enabled ambient occlusion!" << std::endl; }
+        AO.renderAO = !AO.renderAO;
+        if (AO.renderAO) { std::cout << "Enabled ambient occlusion!" << std::endl; }
         else { std::cout << "Disabled ambient occlusion!" << std::endl; }
     }
     else if (key == 'l') {
-        calculateLighting = !calculateLighting;
-        if (calculateLighting) { std::cout << "Enabled lighting!" << std::endl; }
+        AO.calculateLighting = !AO.calculateLighting;
+        if (AO.calculateLighting) { std::cout << "Enabled lighting!" << std::endl; }
         else { std::cout << "Disabled lighting!" << std::endl; }
     }
     else if (key == 'm') {
-        useMultiAO = !useMultiAO;
-        if (useMultiAO) { std::cout << "Enabled MSSSAO!" << std::endl; }
+        AO.useMultiAO = !AO.useMultiAO;
+        if (AO.useMultiAO) { std::cout << "Enabled MSSSAO!" << std::endl; }
         else { std::cout << "Disabled MSSSAO!" << std::endl; }
     }
     if (key == 'r') {
-        SetAORadius(false);
+        AO.SetAORadius(false);
     }
     else if (key == 't') {
-        SetAORadius(true);
+        AO.SetAORadius(true);
     }
 }
 
@@ -894,17 +771,17 @@ void OnSpecialKeyPressed(int key, int x, int y) {
     }
 
     if (key == GLUT_KEY_DOWN) {
-        SetAOPower(false);
+        AO.SetAOPower(false);
     }
     else if (key == GLUT_KEY_UP) {
-        SetAOPower(true);
+        AO.SetAOPower(true);
     }
 
     if (key == GLUT_KEY_LEFT) {
-        SetAOBias(false);
+       AO.SetAOBias(false);
     }
     else if (key == GLUT_KEY_RIGHT) {
-        SetAOBias(true);
+       AO.SetAOBias(true);
     }
     //tell glut to re-render
     glutPostRedisplay();
@@ -990,20 +867,20 @@ int main(int argc, char** argv)
     container.InitializeObjects();
 
     //compile screen space plane for naive ssao 
-    compiler.CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
-    CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
+    compiler.CompileShaders("screenPlane.vert", "SSAO.frag", AO.screenPlaneInfo.vao, AO.screenPlaneInfo.programID);
+    CreateScreenPlaneBuffers(AO.screenPlaneInfo.vbo);
 
     //compile screen space plane for mutli scale ssao 
-    compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
-    CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
+    compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", AO.resolutionPlaneInfo.vao, AO.resolutionPlaneInfo.programID);
+    CreateScreenPlaneBuffers(AO.resolutionPlaneInfo.vbo);
 
     //compile screen space plane for SSAO blurring shader
-    compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
-    CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
+    compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", AO.blurPlaneInfo.vao, AO.blurPlaneInfo.programID);
+    CreateScreenPlaneBuffers(AO.blurPlaneInfo.vbo);
 
     //compile screen space plane for final lighting render
-    compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
-    CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
+    compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", AO.renderPlaneInfo.vao, AO.renderPlaneInfo.programID);
+    CreateScreenPlaneBuffers(AO.renderPlaneInfo.vbo);
 
     //create gBuffers for deferrred shading 
     compiler.CreateDeferredBuffer(width, height);
@@ -1012,7 +889,7 @@ int main(int argc, char** argv)
     compiler.CreateSSAOBuffer( width, height);
 
     //create the kernals for sampling random depth values for SSAO
-    compiler.CreateKernal();
+    compiler.CreateKernel();
 
     //initialize light position
     lightInfo.lightPosition = camera.GetPosition();

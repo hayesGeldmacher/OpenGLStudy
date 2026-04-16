@@ -29,7 +29,7 @@ public:
 
 	void CreateDeferredBuffer(int, int);
 
-	void CreateKernal();
+	void CreateKernel();
 
 	void CreateBuffers(ProgramInfo&, cy::TriMesh&);
 

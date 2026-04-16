@@ -1,25 +1,26 @@
 #version 330 core
 layout (location = 0) out float fragColor;
 
+//texture coordinates for screen space plane
 in vec2 vTex;
 
+//gbuffer variables
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 uniform sampler2D gColorSpec;
 
+//uniform variables
 uniform mat4 projection;
 uniform int kernelSize;
 uniform int power;
-
 uniform float bias;
-
 
 uniform float uRadii[3]; //ex. {0.5, 3.0, 7.0}
 uniform float uMipLevels[3]; // {ex. 0.0f, 2.0, 4.0f}
 
-//tile noise texture of the screen
-const vec2 noiseScale = vec2(800.0/4.0, 600.0/4.0); //screen is 800x800
+//tile noise texture over the screen
+const vec2 noiseScale = vec2(800.0/4.0, 800/4.0); //screen is 800x800
 
 uniform vec3 samples[64]; //the random sampling positions 
 
@@ -54,8 +55,6 @@ float ComputeKernelSSAO(){
 		if(i == 0){currentRadius = 0.5f; currentLod = 0;}
 		if(i == 1){currentRadius = 2.0f; currentLod = 2;}
 		if(i == 2){currentRadius = 5.0f; currentLod = 4;}
-
-
 
 		for(int j = 0; j < 64; ++j){
 			

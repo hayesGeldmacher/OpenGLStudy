@@ -1,18 +1,18 @@
 #version 330 core
 layout (location = 0) out float fragColor;
 
-
 in vec2 vTex;
 out vec2 TexCoords;
 
+//gbuffer textures
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 uniform sampler2D gColorSpec;
 
+//uniform variables
 uniform mat4 projection;
 uniform int power;
-
 uniform float radius;
 uniform float bias;
 

@@ -9,6 +9,7 @@
 #include "ShaderCompiler.h"
 #include "cyGL.h"
 
+//holds list of all standard objects tot be drawn to the screen
 class DrawObjectsContainer {
 public:
 	std::vector<ProgramInfo*> drawObjects;
