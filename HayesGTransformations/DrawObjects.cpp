@@ -60,5 +60,71 @@ cy::TriMesh vaseMesh;
 #pragma endregion objectInformation
 
 void DrawObjectsContainer::InitializeObjects() {
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
+    compiler.CreateBuffers(pillarInfo, pillarMesh);
+    drawObjects.push_back(&pillarInfo);
+    pillarObject.SetScale(5.0f);
+    pillarObject.SetPosition(0, -15.0f, 0.0f);
 
+    //compile dais 
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
+    compiler.CreateBuffers(daisInfo, daisMesh);
+    drawObjects.push_back(&daisInfo);
+    daisObject.SetScale(5.0f);
+    daisObject.SetPosition(0.0f, -15.0f, 0.0f);
+    daisObject.Rotate(0.0f, 90.0f, 0.0f);
+
+    //compile ceiling
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
+    compiler.CreateBuffers(ceilingInfo, ceilingMesh);
+    drawObjects.push_back(&ceilingInfo);
+    ceilingObject.SetScale(5.0f);
+    ceilingObject.SetPosition(0, -15, 0);
+
+    //compile angel
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
+    compiler.CreateBuffers(angelInfo, angelMesh);
+    drawObjects.push_back(&angelInfo);
+    angelObject.SetScale(9.2f);
+    angelObject.SetPosition(-50.0f, -15.0f, -40.0f);
+    angelObject.Rotate(0.0f, 15.0f, 0.0f);
+
+    //compile second angel
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
+    compiler.CreateBuffers(angelInfoSecond, angelMesh);
+    drawObjects.push_back(&angelInfoSecond);
+    angelObjectSecond.SetScale(8.5f);
+    angelObjectSecond.SetPosition(28.0f, -15.0f, -58.0f);
+    angelObjectSecond.Rotate(0.0f, -25.0f, 0.0f);
+
+    //compile rocks 
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
+    compiler.CreateBuffers(rockInfo, rockMesh);
+    drawObjects.push_back(&rockInfo);
+    rockObject.SetScale(7.0f);
+    rockObject.SetPosition(-4.0f, -20.0f, -65.0f);
+
+    //compile vases
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
+    compiler.CreateBuffers(vaseInfo, vaseMesh);
+    drawObjects.push_back(&vaseInfo);
+    vaseObject.SetScale(7.0f);
+    vaseObject.SetPosition(-50, -15, 25.0f);
+    vaseObject.Rotate(0.0f, -45.0f, 0.0f);
+
+    //compile quad floor
+    compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
+    compiler.CreateBuffers(quadInfo, quadMesh);
+    drawObjects.push_back(&quadInfo);
+
+    //set plane position, scale, and color for the scene
+    quadObject.SetScale(200.0f);
+    quadObject.SetPosition(0.0f, -15.0f, 5.0f);
+
+    planeObject.SetScale(20.0f);
+    planeObject.Rotate(90.0f, 0.0f, 0.0f);
+}
+
+ProgramInfo* DrawObjectsContainer::CameraTarget() {
+    return &daisInfo;
 }

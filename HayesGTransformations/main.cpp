@@ -32,6 +32,7 @@
 #include "ImageLoader.h"
 #include "Object.h"
 #include "Material.h"
+#include "DrawObjects.h"
 //Hayes Geldmacher - 4/16/26
 //CS 6610 - Final Project
 
@@ -72,62 +73,6 @@ const static int height = 800;
 //declare objects and programs
 #pragma region objectInformation
 //instance of world object transform class for the screenspace render plane
-Object planeObject;
-
-//instance of world object transform class, generates transformation matrix
-Object teapotObject("teapotReflection.obj");
-ProgramInfo teapotInfo(&teapotObject);
-
-Object teapotObjectSecond("teapotReflection.obj");
-ProgramInfo teapotSecondInfo(&teapotObjectSecond);
-//teapot mesh being loaded in
-cy::TriMesh teapotMesh;
-
-Object quadObject("PlaneMesh.obj");
-ProgramInfo quadInfo(&quadObject);
-//mesh used to load plane
-cy::TriMesh quadMesh;
-
-Object wallObject("PlaneMesh.obj");
-ProgramInfo wallInfo(&wallObject);
-
-//program  info for the model displaying the light
-Object cubeObject("cube.obj");
-ProgramInfo lightModelInfo(&cubeObject);
-//mesh used to load light model
-cy::TriMesh lightMesh;
-
-//program info the loading the pillar
-Object pillarObject("pillar.obj");
-ProgramInfo pillarInfo(&pillarObject);
-cy::TriMesh pillarMesh;
-
-//program info for load the dais
-Object daisObject("dais.obj");
-ProgramInfo daisInfo(&daisObject);
-cy::TriMesh daisMesh;
-
-Object ceilingObject("ceiling.obj");
-ProgramInfo ceilingInfo(&ceilingObject);
-cy::TriMesh ceilingMesh;
-
-Object angelObject("angel.obj");
-ProgramInfo angelInfo(&angelObject);
-cy::TriMesh angelMesh;
-
-Object angelObjectSecond("angel.obj");
-ProgramInfo angelInfoSecond(&angelObjectSecond);
-
-Object rockObject("rocks.obj");
-ProgramInfo rockInfo(&rockObject);
-cy::TriMesh rockMesh;
-
-Object vaseObject("vases.obj");
-ProgramInfo vaseInfo(&vaseObject);
-cy::TriMesh vaseMesh;
-
-
-#pragma endregion objectInformation
 
 #pragma region shadowInformation
 
@@ -273,6 +218,7 @@ float AObias = 0.5f;
 int currentBiasLevel = 1;
 float biasLevels[4] = { 0.25, 0.5f, 0.75f, 1.0f };
 
+DrawObjectsContainer container;
 ShaderCompiler compiler;
 
 
@@ -495,7 +441,7 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
     RenderScreenQuad(programInfo);
 }
 
-//called when GLUT draws something to screen
+//GLUT callback for drawing to the screen
 void OnDisplay() {
 
     
@@ -505,14 +451,14 @@ void OnDisplay() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // keep black so no leaking into gbuffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    camera.SetTarget(teapotInfo.object->GetPosition()); // set camera target
+    camera.SetTarget(container.CameraTarget()->object->GetPosition()); // set camera target
     
     //set position of the light cube
     glm::vec3 lightPos = lightInfo.lightPosition;
-    cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    //cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
   
     //draw all objects to the screen
-    for (ProgramInfo* program : drawObjects) {
+    for (ProgramInfo* program : container.drawObjects) {
         RenderMeshObject(*program, camera, false, false);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -543,7 +489,7 @@ void OnDisplay() {
     glutSwapBuffers();
 }
 
-//called when we want to initialize a depth map for use 
+//create shadow map FBO and depth attachment
 bool CreateShadowMap(ShadowInfo* shadowInfo) {
 
     unsigned int* depthMap = &shadowInfo->depthMap;
@@ -586,40 +532,6 @@ bool CreateShadowMap(ShadowInfo* shadowInfo) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     return true;
-}
-
-//loads and returns an object file using string for text file name
-cy::TriMesh LoadObjectFile(const char* fileName) {
-    //create the mesh from obj data
-    cy::TriMesh mesh;
-
-    //check if mesh was opened correctly
-    bool couldOpenPot = mesh.LoadFromFileObj(fileName);
-    if (couldOpenPot) {
-        std::cout << "opened teapot!" << std::endl;
-    }
-    else {
-        std::cout << "Could not open the teapot!" << std::endl;
-    }
-
-    return mesh;
-}
-
-//centers the object, sets initial pos, rot, and scale
-void InitializeObject(cy::TriMesh &mesh, Object &object) {
-    //compute the bounding box to center the object in local space
-    mesh.ComputeBoundingBox();
-    cy::Vec3f boundMin = mesh.GetBoundMin();
-    cy::Vec3f boundMax = mesh.GetBoundMax();
-    cy::Vec3f centerPoint;
-    centerPoint.x = (boundMin.x + boundMax.x) / 2;
-    centerPoint.y = (boundMin.y + boundMax.y) / 2;
-    centerPoint.z = (boundMin.z + boundMax.z) / 2;
-
-    //set object starting position, rotation, scale
-    object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
-    object.SetPosition(0.0, 8.0f, 0.0f);
-    object.SetScale(1.0f);
 }
 
 //creates and binds a texture, given a specified filename and uniform variable
@@ -700,44 +612,6 @@ void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLui
 
 }
 
-//intializes the render buffer object
-bool RenderToTexture() {
-    
-    //bind the render buffer object before anything else
-    
-    renderBuffer.Bind();
-
-    //initialize render buffer object
-    renderBuffer.Initialize(
-        true, //create depth buffer
-        4, //RGBA
-        width, //texture width
-        height //texture height
-    );
-    
-    //build mipmaps
-    renderBuffer.BuildTextureMipmaps();
-
-    //sets bilinear filtering for magnification 
-    //and trilinear filtering with mipmaps for minification
-    renderBuffer.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
-
-    //setting anisotropy value
-     renderBuffer.SetTextureAnisotropy(16.0);
-
-    //check that the render buffer is ready, if not, set a warning
-    if (!renderBuffer.IsReady()) {
-        std::cout << "WARNING! Render buffer is not ready for use!" << std::endl;
-        return false;
-    }
-
-    std::cout << "Successfully initialized render texture!" << std::endl;
-
-    //unbind render bufffer once we are done initializing it
-    renderBuffer.Unbind();
-    return true;
-}
-
 //generates textures for given object
 void GenerateTextures(cy::TriMesh &mesh, bool spec) {
 
@@ -759,14 +633,14 @@ void GenerateTextures(cy::TriMesh &mesh, bool spec) {
     const std::string diffuseFileName(diffuseTextureData.data);
     std::cout << "DIFFUSE FILE NAME: " << diffuseFileName << std::endl;
     //test with PNG to see if this works!
-    BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
+    //BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
     
 
     if (spec) {
         const std::string specFileName(specTextureData.data);
         std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
         //do the same thing now for the specular texture
-        BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
+      //  BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
     }
 
 }
@@ -830,107 +704,10 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
     );
 }
 
-//creates buffer for vertex pos and normal info, sets related attributes
-void CreateBuffers(ProgramInfo &programInfo, cy::TriMesh &mesh) {
-    
-    Object* object = programInfo.object;
-    mesh = LoadObjectFile(object->objectFileName);
-
-    //each mesh face has 3 associated vertices, store that number for later
-    object->facesNumber = mesh.NF() * 3;
-
-    //create a vector of vertices for vertex and normal buffering
-    std::vector<Vertex> vertexData = std::vector<Vertex>(object->facesNumber);
-
-    bool hasNormals = object->hasNormals;
-    bool hasTexCoords = object->hasTexCoords;
-
-    //takes position and normal values from vertices in the mesh, stores in vertexData vector above
-    int vertexIndex = 0;
-    for (int i = 0; i < mesh.NF(); i++) {
-        // Get face indices for positions and normals
-        const cy::TriMesh::TriFace& face = mesh.F(i);
-        const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
-        const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
-
-        if (i == 0) { std::cout << "DOES HAVE NORMALS? "<< object->objectFileName << "" << hasNormals << std::endl; }
-
-        for (int c = 0; c < 3; c++) {
-            // store position data
-            const auto& point = mesh.V(face.v[c]);
-            vertexData[vertexIndex].position[0] = point.x;
-            vertexData[vertexIndex].position[1] = point.y;
-            vertexData[vertexIndex].position[2] = point.z;
-
-            if (hasNormals) {
-                // store normal data
-                const auto& norm = mesh.VN(faceNormal->v[c]);
-                vertexData[vertexIndex].normals[0] = norm.x;
-                vertexData[vertexIndex].normals[1] = norm.y;
-                vertexData[vertexIndex].normals[2] = norm.z;
-            }
-
-            if (hasTexCoords) {
-                //store texture coordinates
-                const auto& tex = mesh.VT(faceTex->v[c]);
-                const float flippedUV = 1.0f - tex.y;
-                vertexData[vertexIndex].texCords[0] = tex.x;
-                vertexData[vertexIndex].texCords[1] = flippedUV;
-            }
-
-            vertexIndex++;
-        }
-    }
-
-    //then generate texture image
-    if(object->hasTextures){ GenerateTextures(mesh, false); }
-   
-    //create buffer for holding mesh vertex data
-    glGenBuffers(1, &programInfo.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, programInfo.vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(Vertex), vertexData.data(), GL_STATIC_DRAW);
-
-    //interpet position data
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)0);
-
-    if (hasNormals) {
-        //interpret normal data
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::normals));
-    }
-    if (hasTexCoords) {
-
-        //interpret texture data
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::texCords));
-    }
-}
-
-//creates buffers specifically for the plane object, different logic than above function due to lack of mesh obj file
-void CreatePlaneBuffers(GLuint &vbo, Object &object) {
-    
-    //create buffer for holding mesh vertex data
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(float), &object.planeArrayFlipped[0], GL_STATIC_DRAW);
-
-    //interpet position data
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)0);
-
-    //interpret normal data
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 3));
-
-    //interpret tex coords data
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (GLvoid*)(sizeof(float) * 6));
-}
-
-//creates buffers for 2D screenspace plane
+//creates buffers screen space plane with normalized device coordinates
 void CreateScreenPlaneBuffers(GLuint& vbo) {
  
+    //create quad from float array
     float quadVertices[24] = {
         //positions //texCoords
         -1.0f,  1.0f, 0.0f, 1.0f,
@@ -942,7 +719,6 @@ void CreateScreenPlaneBuffers(GLuint& vbo) {
         1.0f, 1.0f, 1.0f, 1.0f
     };
 
-    
     //create buffer for holding mesh vertex data
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -957,6 +733,7 @@ void CreateScreenPlaneBuffers(GLuint& vbo) {
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (GLvoid*)(sizeof(float) * 2));
 }
 
+//calculates and display current frames per second in window title
 void CalculateFPS() {
    
     frameCurrentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
@@ -973,7 +750,7 @@ void CalculateFPS() {
     }
 }
 
-//idle callback 
+//GLUT callback for idle 
 void OnIdle() {
 
     CalculateFPS();
@@ -985,49 +762,13 @@ void OnIdle() {
     //sets idle time for camera
     camera.SetDeltaSpeed(timeDifference);
 
-        //create an equalizing increment to effect animation, so that speed is constant
-        float animateIncrement = animateSpeed * timeDifference;
-
-        //if object is idly rotation, increase rotation angle
-        if (teapotObject.rotating) {
-            angleInRadians += animateIncrement;
-        }
-
-        //slowly increment color values for each vertex on the mesh object over time
-        float colorSpeed = 0.0004f * timeDifference;
-        for (int i = 0; i < 3; i++) {
-            Color* color = colors[i];
-            if (color->active)
-            {
-                if (color->goingUp) {
-                    color->value += colorSpeed;
-                    if (color->value >= 1) {
-                        color->goingUp = false;
-                    }
-                }
-                else {
-                    color->value -= colorSpeed;
-                    if (color->value <= 0) {
-                        color->goingUp = true;
-                    }
-                }
-
-            }
-        }
-
-        //assign updated color values to the mesh teapot object
-        teapotInfo.object->SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
-        teapotObjectSecond.SetColor(colors[0]->value, colors[1]->value, colors[2]->value);
-
-
-
     //set previous time
     previousTime = currentTime;
     //now that GLUT is idle, tell GLUT that it needs to draw again
     glutPostRedisplay();
 }
 
-//mouse button callback
+//GLUT callback for mouse buttons
 void OnMouse(int button, int state, int x, int y) {
 
     //send input to camera mouse button function
@@ -1039,9 +780,8 @@ void OnMouse(int button, int state, int x, int y) {
     glutPostRedisplay();
 }
 
-//mouse moving callback
+//GLUT callback for mouse motion
 void OnMouseMotion(int x, int y) {
-
 
     lightInfo.OnMouseMotion(x, y);
 
@@ -1052,6 +792,7 @@ void OnMouseMotion(int x, int y) {
     glutPostRedisplay();
 }
 
+//alters radius of AO
 void SetAORadius(bool up) {
     if (up) {
         currentRadiusLevel++;
@@ -1065,6 +806,7 @@ void SetAORadius(bool up) {
     std::cout << "set AO radius to: " << AOradius << std::endl;
 }
 
+//alters bias of AO
 void SetAOBias(bool up) {
     if (up) {
         currentBiasLevel++;
@@ -1078,6 +820,7 @@ void SetAOBias(bool up) {
     std::cout << "set AO bias to: " << AObias << std::endl;
 }
 
+//alters intensity of AO
 void SetAOPower(bool up) {
     if (up) {
         currentOcclusionLevel++;
@@ -1091,7 +834,7 @@ void SetAOPower(bool up) {
     std::cout << "set AO power to: " << AOPower << std::endl;
 }
 
-//keyboard input callback
+//GLUT callback for standard key input
 void OnKeyPressed(unsigned char key, int x, int y) {
 
     //send input to the camera
@@ -1130,9 +873,9 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     else if (key == 't') {
         SetAORadius(true);
     }
-
 }
 
+//GLUT callback for special key input
 void OnSpecialKeyPressed(int key, int x, int y) {
 
     //recompile shaders if 'f6' key is pressed
@@ -1167,8 +910,10 @@ void OnSpecialKeyPressed(int key, int x, int y) {
     glutPostRedisplay();
 }
 
+//GLUT callback for special key input
 void OnSpecialKeyPressedUp(int key, int x, int y) {
 
+    //set mouse to control main light instead of camera
     if (key == GLUT_KEY_CTRL_L) {
         lightInfo.SetPressingButton(false);
         camera.enabled = true;
@@ -1213,7 +958,7 @@ int main(int argc, char** argv)
 
     //initialize display mode with zbuffer, double buffering, and rgb colors
     glutInitDisplayMode(
-        GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 
     //create glut debug context
     glutInitContextFlags(GLUT_DEBUG);
@@ -1241,116 +986,42 @@ int main(int argc, char** argv)
     //clear any colors, set the background to black transparent
     glClearColor(0, 0, 0, 0);
 
-        
-       //center teapot, set rot, pos, and scale
-       InitializeObject(teapotMesh, *teapotInfo.object);
+    //set up list of all standard objects to rendered in the scene
+    container.InitializeObjects();
 
-       //compile test pillar 
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
-       CreateBuffers(pillarInfo, pillarMesh);
-       drawObjects.push_back(&pillarInfo);
-       pillarObject.SetScale(5.0f);
-       pillarObject.SetPosition(0, -15.0f, 0.0f);
+    //compile screen space plane for naive ssao 
+    compiler.CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
+    CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
 
-       //compile dais 
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
-       CreateBuffers(daisInfo, daisMesh);
-       drawObjects.push_back(&daisInfo);
-       daisObject.SetScale(5.0f);
-       daisObject.SetPosition(0.0f, -15.0f, 0.0f);
-       daisObject.Rotate(0.0f, 90.0f, 0.0f);
+    //compile screen space plane for mutli scale ssao 
+    compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
+    CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
 
-       //compile ceiling
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
-       CreateBuffers(ceilingInfo, ceilingMesh);
-       drawObjects.push_back(&ceilingInfo);
-       ceilingObject.SetScale(5.0f);
-       ceilingObject.SetPosition(0, -15, 0);
+    //compile screen space plane for SSAO blurring shader
+    compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
+    CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
 
-       //compile angel
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
-       CreateBuffers(angelInfo, angelMesh);
-       drawObjects.push_back(&angelInfo);
-       angelObject.SetScale(9.2f);
-       angelObject.SetPosition(-50.0f, -15.0f, -40.0f);
-       angelObject.Rotate(0.0f, 15.0f, 0.0f);
+    //compile screen space plane for final lighting render
+    compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
+    CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
 
-       //compile second angel
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
-       CreateBuffers(angelInfoSecond, angelMesh);
-       drawObjects.push_back(&angelInfoSecond);
-       angelObjectSecond.SetScale(8.5f);
-       angelObjectSecond.SetPosition(28.0f, -15.0f, -58.0f);
-       angelObjectSecond.Rotate(0.0f, -25.0f, 0.0f);
+    //create gBuffers for deferrred shading 
+    compiler.CreateDeferredBuffer(width, height);
 
-       //compile rocks 
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
-       CreateBuffers(rockInfo, rockMesh);
-       drawObjects.push_back(&rockInfo);
-       rockObject.SetScale(7.0f);
-       rockObject.SetPosition(-4.0f, -20.0f, -65.0f);
+    //create frame buffer objects for ssao
+    compiler.CreateSSAOBuffer( width, height);
 
-       //compile vases
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
-       CreateBuffers(vaseInfo, vaseMesh);
-       drawObjects.push_back(&vaseInfo);
-       vaseObject.SetScale(7.0f);
-       vaseObject.SetPosition(-50, -15, 25.0f);
-       vaseObject.Rotate(0.0f, -45.0f, 0.0f);
+    //create the kernals for sampling random depth values for SSAO
+    compiler.CreateKernal();
 
-       //compile quad floor
-       compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", quadInfo.vao, quadInfo.programID);
-        CreateBuffers(quadInfo, quadMesh);
-        drawObjects.push_back(&quadInfo);
-
-       //set plane position, scale, and color for the scene
-        quadObject.SetScale(200.0f);
-        quadObject.SetPosition(0.0f, -15.0f, 5.0f);
-
-        compiler.CompileShaders("screenPlane.vert", "SSAO.frag", screenPlaneInfo.vao, screenPlaneInfo.programID);
-        CreateScreenPlaneBuffers(screenPlaneInfo.vbo);
-
-        compiler.CompileShaders("screenPlane.vert", "MSSAOPass.frag", resolutionPlaneInfo.vao, resolutionPlaneInfo.programID);
-        CreateScreenPlaneBuffers(resolutionPlaneInfo.vbo);
-
-        //compile plane for SSAO blurring shader
-        compiler.CompileShaders("screenPlane.vert", "AOBlur.frag", blurPlaneInfo.vao, blurPlaneInfo.programID);
-        CreateScreenPlaneBuffers(blurPlaneInfo.vbo);
-
-       //compile plane for final render - uses same object as above, just renders colors differently
-       compiler.CompileShaders("screenPlane.vert", "screenPlane.frag", renderPlaneInfo.vao, renderPlaneInfo.programID);
-        CreateScreenPlaneBuffers(renderPlaneInfo.vbo);
-        planeObject.SetScale(20.0f);
-        planeObject.Rotate(90.0f, 0.0f, 0.0f);
-
-       //compile plane for final screenspace lighting render
-
-       //Compile shaders for the light model
-       lightModelInfo.object->hasNormals = false;
-       lightModelInfo.object->hasTexCoords = false;
-       lightModelInfo.object->hasTextures = false;
-        
-       compiler.CompileShaders("ambientObject.vert", "lightModel.frag", lightModelInfo.vao, lightModelInfo.programID);
-       CreateBuffers(lightModelInfo, lightMesh);
-       drawObjects.push_back(&lightModelInfo);
-       cubeObject.scale = (0.3f);
-
-       //create gBuffers for deferrred shading 
-       compiler.CreateDeferredBuffer(width, height);
-
-       compiler.CreateSSAOBuffer( width, height);
-
-       //create the kernals for sampling depth values for SSAO
-        compiler.CreateKernal();
-
-       //initialize light position
-        lightInfo.lightPosition = camera.GetPosition();
+    //initialize light position
+    lightInfo.lightPosition = camera.GetPosition();
 
     //set the teapot camera to active by default
     camera.SetEnabled(true);
 
     //enable depth z buffer
-   glEnable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
     //Main loop glut operates in
     glutMainLoop();

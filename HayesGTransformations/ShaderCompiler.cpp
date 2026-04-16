@@ -160,6 +160,22 @@ void ShaderCompiler::CreateDeferredBuffer(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void ShaderCompiler::InitializeObject(cy::TriMesh& mesh, Object& object) {
+    //compute the bounding box to center the object in local space
+    mesh.ComputeBoundingBox();
+    cy::Vec3f boundMin = mesh.GetBoundMin();
+    cy::Vec3f boundMax = mesh.GetBoundMax();
+    cy::Vec3f centerPoint;
+    centerPoint.x = (boundMin.x + boundMax.x) / 2;
+    centerPoint.y = (boundMin.y + boundMax.y) / 2;
+    centerPoint.z = (boundMin.z + boundMax.z) / 2;
+
+    //set object starting position, rotation, scale
+    object.SetCenter(glm::vec3(centerPoint.x, centerPoint.y, centerPoint.z)); //centers object in local space
+    object.SetPosition(0.0, 8.0f, 0.0f);
+    object.SetScale(1.0f);
+}
+
 cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
     //create the mesh from obj data
     cy::TriMesh mesh;
@@ -178,6 +194,78 @@ cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
 
 void ShaderCompiler::CreateBuffers(ProgramInfo& programInfo, cy::TriMesh& mesh) {
 
+    Object* object = programInfo.object;
+    mesh = LoadObjectFile(object->objectFileName);
+
+    //each mesh face has 3 associated vertices, store that number for later
+    object->facesNumber = mesh.NF() * 3;
+
+    //create a vector of vertices for vertex and normal buffering
+    std::vector<Vertex> vertexData = std::vector<Vertex>(object->facesNumber);
+
+    bool hasNormals = object->hasNormals;
+    bool hasTexCoords = object->hasTexCoords;
+
+    //takes position and normal values from vertices in the mesh, stores in vertexData vector above
+    int vertexIndex = 0;
+    for (int i = 0; i < mesh.NF(); i++) {
+        // Get face indices for positions and normals
+        const cy::TriMesh::TriFace& face = mesh.F(i);
+        const cy::TriMesh::TriFace* faceNormal = hasNormals ? &mesh.FN(i) : nullptr;
+        const cy::TriMesh::TriFace* faceTex = hasTexCoords ? &mesh.FT(i) : nullptr;
+
+        if (i == 0) { std::cout << "DOES HAVE NORMALS? " << object->objectFileName << "" << hasNormals << std::endl; }
+
+        for (int c = 0; c < 3; c++) {
+            // store position data
+            const auto& point = mesh.V(face.v[c]);
+            vertexData[vertexIndex].position[0] = point.x;
+            vertexData[vertexIndex].position[1] = point.y;
+            vertexData[vertexIndex].position[2] = point.z;
+
+            if (hasNormals) {
+                // store normal data
+                const auto& norm = mesh.VN(faceNormal->v[c]);
+                vertexData[vertexIndex].normals[0] = norm.x;
+                vertexData[vertexIndex].normals[1] = norm.y;
+                vertexData[vertexIndex].normals[2] = norm.z;
+            }
+
+            if (hasTexCoords) {
+                //store texture coordinates
+                const auto& tex = mesh.VT(faceTex->v[c]);
+                const float flippedUV = 1.0f - tex.y;
+                vertexData[vertexIndex].texCords[0] = tex.x;
+                vertexData[vertexIndex].texCords[1] = flippedUV;
+            }
+
+            vertexIndex++;
+        }
+    }
+
+    //then generate texture image
+   // if (object->hasTextures) { GenerateTextures(mesh, false); }
+
+    //create buffer for holding mesh vertex data
+    glGenBuffers(1, &programInfo.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, programInfo.vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(Vertex), vertexData.data(), GL_STATIC_DRAW);
+
+    //interpet position data
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)0);
+
+    if (hasNormals) {
+        //interpret normal data
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::normals));
+    }
+    if (hasTexCoords) {
+
+        //interpret texture data
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)offsetof(Vertex, Vertex::texCords));
+    }
 }
 
 float ShaderCompiler::Lerp(float a, float b, float f) {

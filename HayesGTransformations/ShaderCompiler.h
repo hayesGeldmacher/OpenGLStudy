@@ -18,6 +18,7 @@
 //custom includes
 #include "ProgramInfo.h"
 #include "cyTriMesh.h"
+#include "ShaderCompiler.h"
 
 
 class ShaderCompiler {
@@ -32,8 +33,9 @@ public:
 
 	void CreateBuffers(ProgramInfo&, cy::TriMesh&);
 
-	cy::TriMesh LoadObjectFile(const char*);
+	void InitializeObject(cy::TriMesh& mesh, Object& object);
 
+	cy::TriMesh LoadObjectFile(const char*);
 
 	float Lerp(float, float, float);
 
@@ -45,5 +47,5 @@ public:
 	unsigned int AOBlurFBO, AOColorBufferBlur; //frame buffer object for blurring AO
 	int kernelNumber = 64;
 	std::vector<glm::vec3> kernel; //list of kernel samples to send to SSAO.frag shader
-
+	
 };
