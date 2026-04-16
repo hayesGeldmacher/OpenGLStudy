@@ -60,15 +60,19 @@ cy::TriMesh vaseMesh;
 #pragma endregion objectInformation
 
 void DrawObjectsContainer::InitializeObjects() {
+
+    //compile pillar
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", pillarInfo.vao, pillarInfo.programID);
     compiler.CreateBuffers(pillarInfo, pillarMesh);
     drawObjects.push_back(&pillarInfo);
+    compiler.BindTexturesMTL(pillarInfo, "marble.png", pillarInfo.texIDDiffuse, "albedoTexture");
     pillarObject.SetScale(5.0f);
     pillarObject.SetPosition(0, -15.0f, 0.0f);
 
     //compile dais 
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", daisInfo.vao, daisInfo.programID);
     compiler.CreateBuffers(daisInfo, daisMesh);
+    compiler.BindTexturesMTL(daisInfo, "dais.png", daisInfo.texIDDiffuse, "albedoTexture");
     drawObjects.push_back(&daisInfo);
     daisObject.SetScale(5.0f);
     daisObject.SetPosition(0.0f, -15.0f, 0.0f);
@@ -86,16 +90,18 @@ void DrawObjectsContainer::InitializeObjects() {
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfo.vao, angelInfo.programID);
     compiler.CreateBuffers(angelInfo, angelMesh);
     drawObjects.push_back(&angelInfo);
+    compiler.BindTexturesMTL(angelInfo, "angel.png", angelInfo.texIDDiffuse, "albedoTexture");
     angelObject.SetScale(9.2f);
-    angelObject.SetPosition(-50.0f, -15.0f, -40.0f);
+    angelObject.SetPosition(-50.0f, 5.0, -40.0f);
     angelObject.Rotate(0.0f, 15.0f, 0.0f);
 
     //compile second angel
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", angelInfoSecond.vao, angelInfoSecond.programID);
     compiler.CreateBuffers(angelInfoSecond, angelMesh);
     drawObjects.push_back(&angelInfoSecond);
+    compiler.BindTexturesMTL(angelInfoSecond, "angel.png", angelInfoSecond.texIDDiffuse, "albedoTexture");
     angelObjectSecond.SetScale(8.5f);
-    angelObjectSecond.SetPosition(28.0f, -15.0f, -58.0f);
+    angelObjectSecond.SetPosition(28.0f, 5.0, -58.0f);
     angelObjectSecond.Rotate(0.0f, -25.0f, 0.0f);
 
     //compile rocks 
@@ -110,6 +116,7 @@ void DrawObjectsContainer::InitializeObjects() {
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
     compiler.CreateBuffers(vaseInfo, vaseMesh);
     drawObjects.push_back(&vaseInfo);
+    compiler.BindTexturesMTL(vaseInfo, "vases.png", vaseInfo.texIDDiffuse, "albedoTexture");
     vaseObject.SetScale(7.0f);
     vaseObject.SetPosition(-50, -15, 25.0f);
     vaseObject.Rotate(0.0f, -45.0f, 0.0f);

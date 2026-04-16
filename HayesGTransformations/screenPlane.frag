@@ -36,7 +36,7 @@ void main()
 	float specularIntensity = texture(gColorSpec, vTex).a;
 	float occlusion = texture(AO, vTex).r;
 	
-	if(calculateLighting == 1){
+	if(calculateLighting == 2){
 		//blinn-phong (in view space)
 		vec3 ambient;
 		if(renderAO == 1){
@@ -67,11 +67,15 @@ void main()
 
 		color = vec4(lighting, 1.0f);
 	}
-	else{
+	else if(calculateLighting == 1){
 	
 		color = vec4(albedo, 1.0f);
 		if(renderAO == 1){
 			color *= occlusion;	
 		}
+	}
+	else{
+		color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		color *= occlusion;
 	}
 }  

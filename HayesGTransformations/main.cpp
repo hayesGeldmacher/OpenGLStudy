@@ -352,9 +352,12 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
             //send the camera view variable
             uniformLocation = glGetUniformLocation(programInfo.programID, "view");
             glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &camViewMat[0][0]);
+            glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 2);
+        }
+        else if(AO.useTextures){
             glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 1);
         }
-        else{
+        else {
             glUniform1i(glGetUniformLocation(programInfo.programID, "calculateLighting"), 0);
         }
     }
@@ -454,69 +457,6 @@ bool CreateShadowMap(ShadowInfo* shadowInfo) {
 
     return true;
 }
-
-/*
-
-//environment cube mapping
-void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
-
-    glGenTextures(1, &texID);
-
-    glBindTexture(GL_TEXTURE_CUBE_MAP, texID);
-
-    //for loop to generate texture images for all 6 faces
-    int width = 0;
-    int height = 0;
-    int colorChannels = 0;
-    
-    for (unsigned int i = 0; i < faceNames.size(); i++) {
-        
-        unsigned char* image = imageLoader.loadImageFromPNG(faceNames[i].c_str(), width, height, colorChannels);
-        if (image) {
-            std::cout << "WIDTH: " << width << std::endl;
-            std::cout << "HEIGHT: " << height << std::endl;
-            std::cout << "ColorChannels " << colorChannels << std::endl;
-            std::cout << "Generated face number: " << i << std::endl;
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-            glTexImage2D(
-                //iterating the enum eahc time to move through each face
-                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                0,        //mipmap level 0
-                GL_RGB,  //internal format
-                width,    //image width
-                height,   //image height
-                0,        //borderr (must be 0)
-                GL_RGB,  //format
-                GL_UNSIGNED_BYTE,  //data type
-                image //pixel array data
-            );
-
-
-        }
-        else {
-            std::cout << "failed to load image at path: " << faceNames[i] << std::endl;
-            stbi_image_free(image);
-        }
-
-    }
-    
-    //next, generate a few mipmaps
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-    glTexParameteri(
-        GL_TEXTURE_CUBE_MAP,
-        GL_TEXTURE_MAG_FILTER,
-        GL_LINEAR
-    );
-
-    glTexParameteri(
-        GL_TEXTURE_CUBE_MAP,
-        GL_TEXTURE_MAG_FILTER,
-        GL_LINEAR
-    );
-}
-
-*/
 
 //creates buffers screen space plane with normalized device coordinates
 void CreateScreenPlaneBuffers(GLuint& vbo) {
@@ -644,6 +584,11 @@ void OnKeyPressed(unsigned char key, int x, int y) {
     }
     else if (key == 't') {
         AO.SetAORadius(true);
+    }
+    if (key == 'y') {
+        AO.useTextures = !AO.useTextures;
+        if (AO.useTextures) { std::cout << "Enabled textures!" << std::endl; }
+        else { std::cout << "Disabled textures!" << std::endl; }
     }
 }
 

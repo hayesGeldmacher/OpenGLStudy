@@ -10,6 +10,7 @@ public:
 	bool blurAO = true;
 	bool useMultiAO = true;
 	bool calculateLighting = false;
+	bool useTextures = false;
 
 	//change the exaggeration of AO
 	int AOPower = 1;
@@ -24,7 +25,10 @@ public:
 	//change the radius for AO
 	float AObias = 0.5f;
 	int currentBiasLevel = 1;
-	float biasLevels[4] = { 0.25, 0.5f, 0.75f, 1.0f };
+	float biasLevels[4] = { 0.25f, 0.5f, 0.75f, 1.0f };
+
+	float multiRadii[3] = { 0.5f, 3.0f, 7.0f }; //different radius for each nested hemisphere in MSSAO
+	float textureLevels[3] = { 0.0f, 2.0f, 4.0f }; //different mipmap levels for each hemisphere in MSSAO
 	//program info getting SSAO to the screen
 	ProgramInfo screenPlaneInfo;
 
