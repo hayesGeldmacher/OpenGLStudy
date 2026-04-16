@@ -16,8 +16,8 @@ uniform int kernelSize;
 uniform int power;
 uniform float bias;
 
-uniform float uRadii[3]; //ex. {0.5, 3.0, 7.0}
-uniform float uMipLevels[3]; // {ex. 0.0f, 2.0, 4.0f}
+uniform float nestedRadius[3]; //radius for each hemisphere
+uniform float textureLevels[3]; // lod level for each hmeisphere
 
 //tile noise texture over the screen
 const vec2 noiseScale = vec2(800.0/4.0, 800/4.0); //screen is 800x800
@@ -40,22 +40,19 @@ float ComputeKernelSSAO(){
 	//get random noise
 	vec3 randomVec = texture(texNoise, vTex * noiseScale).xyz;
 
-	//TBN matrix, transform tangent-to-view space:
+	//TBN matrix, transform tangent to view space:
 	vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
 	vec3 bitTangent = cross(normal, tangent);
 	mat3 TBN = mat3(tangent, bitTangent, normal);
 
+	//for loop, go through each nested hemisphere
 	for(int i = 0; i < 3; ++i){
 	
 		float scaleOcclusion = 0.0;
-		float currentRadius = uRadii[i]; //get the desired radius
-	    float currentLod = uMipLevels[i]; //get the desired lod
+		float currentRadius = nestedRadius[i]; //get the desired radius
+	    float currentLod = textureLevels[i]; //get the desired lod
 
-		//just for testing
-		if(i == 0){currentRadius = 0.5f; currentLod = 0;}
-		if(i == 1){currentRadius = 2.0f; currentLod = 2;}
-		if(i == 2){currentRadius = 5.0f; currentLod = 4;}
-
+		//inner for loop, get random samples
 		for(int j = 0; j < 64; ++j){
 			
 			vec3 samplePos = TBN * samples[j]; 
@@ -77,6 +74,7 @@ float ComputeKernelSSAO(){
 		     scaleOcclusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
 		}
 
+		//add to total occlusion factor
 		totalOcclusion += ( scaleOcclusion / float(64));
 
 	}

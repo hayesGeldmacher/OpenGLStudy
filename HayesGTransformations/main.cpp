@@ -58,8 +58,6 @@
         press the up and down keys to alter AO intensity
         press the right and left keys to alter the AO bias
         press the 'r' and 't' keys to alter the AO radius
-
-    press 'f6' to recompile shaders
 */
 
 //screen width and height
@@ -317,10 +315,19 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
         glUniform1i(glGetUniformLocation(programInfo.programID, "texNoise"), 3);
 
         //send uniform variables to control AO
-        glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), compiler.kernelNumber);
         glUniform1i(glGetUniformLocation(programInfo.programID, "power"), AO.AOPower);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "kernelSize"), compiler.kernelNumber);
         glUniform1f(glGetUniformLocation(programInfo.programID, "bias"), AO.AObias);
-        glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AO.AOradius);
+
+        if (AO.useMultiAO) {
+            glUniform1fv(glGetUniformLocation(programInfo.programID, "textureLevels"), 3, &AO.textureLevels[0]);
+            glUniform1fv(glGetUniformLocation(programInfo.programID, "nestedRadius"), 3, &AO.nestedRadius[0]);
+        }
+        else {
+
+            glUniform1f(glGetUniformLocation(programInfo.programID, "radius"), AO.AOradius);
+        }
+
     }
  
     if (includeAOTexture) {
@@ -594,15 +601,6 @@ void OnKeyPressed(unsigned char key, int x, int y) {
 
 //GLUT callback for special key input
 void OnSpecialKeyPressed(int key, int x, int y) {
-
-    //recompile shaders if 'f6' key is pressed
-    if (key == GLUT_KEY_F6) {
-        std::cout << "Compiled shaders!" << std::endl;
-        
-       // CompileShaders("cubeMap.vert", "cubeMap.frag", cubeInfo.vao, cubeInfo.programID);
-       // CompileShaders("reflection.vert", "reflection.frag", teapotInfo.vao, teapotInfo.programID);
-       // CompileShaders("renderedReflections.vert", "renderedReflections.frag", planeInfo.vao, planeInfo.programID);
-    }
 
     //sets active rotation 
     if (key == GLUT_KEY_CTRL_L) {

@@ -18,5 +18,6 @@ void main(){
 		}
 	}
 	
+	//get the average for blurring
 	fragColor = result / (4.0 * 4.0);
 }

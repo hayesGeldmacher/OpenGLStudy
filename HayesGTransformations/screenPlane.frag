@@ -76,6 +76,8 @@ void main()
 	}
 	else{
 		color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		if(renderAO == 1){
 		color *= occlusion;
+		}
 	}
 }  
