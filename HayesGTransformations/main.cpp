@@ -1,7 +1,6 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #define GLM_ENABLE_EXPERIMENTAL
-#include "stb_image.h"
 //Glut/GL libaries
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -27,7 +26,6 @@
 #include "Camera.h"
 #include "LightInfo.h"
 #include "ProgramInfo.h"
-#include "ImageLoader.h"
 #include "Object.h"
 #include "DrawObjects.h"
 #include "AOInfo.h"
@@ -150,8 +148,6 @@ struct persProj {
 static persProj projInfo;
 //projection info for light matrix
 static persProj lightProjection;
-//image loader object for loading texture data from image files
-ImageLoader imageLoader;
 float timeDifference = 0.0f;
 float frameCurrentTime = 0.0f;
 float framePreviousTime = 0.0f;
@@ -251,9 +247,6 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, bool useTextures
         uniformLocation = glGetUniformLocation(programInfo.programID, "world");
         glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &worldMatrix[0][0]);
 
-        uniformLocation = glGetUniformLocation(programInfo.programID, "specShine");
-        glUniform1f(uniformLocation, lightInfo.shine);
-
         glm::vec3 objectColor = programInfo.object->GetColor();
         uniformLocation = glGetUniformLocation(programInfo.programID, "objectColor");
         glUniform3f(uniformLocation, objectColor.x, objectColor.y, objectColor.z);
@@ -266,8 +259,17 @@ void RenderMeshObject(ProgramInfo &programInfo, Camera &camera, bool useTextures
         SetUniformAttributesLighting(programInfo.programID, camera);
     }
 
+       
     if (useTextures) {
+        uniformLocation = glGetUniformLocation(programInfo.programID, "hasTexture");
+        glUniform1i(uniformLocation, 1);
+        glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, programInfo.texIDDiffuse);
+        glUniform1i(glGetUniformLocation(programInfo.programID, "albedoTexture"), 5);
+    }
+    else {
+        uniformLocation = glGetUniformLocation(programInfo.programID, "hasTexture");
+        glUniform1i(uniformLocation, 0);
     }
 
     glDrawArrays(GL_TRIANGLES, 0, programInfo.object->facesNumber);
@@ -362,8 +364,8 @@ void RenderScreenSpacePlane(ProgramInfo& programInfo, bool includeNoiseTexture, 
 
 //GLUT callback for drawing to the screen
 void OnDisplay() {
-
     
+
     glEnable(GL_DEPTH_TEST);
     //first geometry pass - render data to gbuffer
     glBindFramebuffer(GL_FRAMEBUFFER, compiler.gBuffer);
@@ -373,12 +375,13 @@ void OnDisplay() {
     camera.SetTarget(container.CameraTarget()->object->GetPosition()); // set camera target
     
     //set position of the light cube
-    glm::vec3 lightPos = lightInfo.lightPosition;
-    //cubeObject.SetPosition(lightPos.x, lightPos.y, lightPos.z);
+    //glm::vec3 lightPos = lightInfo.lightPosition;
   
     //draw all objects to the screen
     for (ProgramInfo* program : container.drawObjects) {
-        RenderMeshObject(*program, camera, false, false);
+        bool renderTextures = program->object->hasTextures;
+        if (renderTextures) { std::cout << "Rendered texture for object!" << std::endl; }
+        RenderMeshObject(*program, camera, renderTextures, false);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -453,116 +456,7 @@ bool CreateShadowMap(ShadowInfo* shadowInfo) {
     return true;
 }
 
-//creates and binds a texture, given a specified filename and uniform variable
-//currenlty used for both diffuse and specularity
-void BindTexturesMTL(ProgramInfo &programInfo, const std::string& fileName, GLuint& texID, const GLchar* uniformName) {
-
-    //create the texture variable
-    glGenTextures(1, &texID);
-    //this will hold the image raw data
-    std::vector<unsigned char> image;
-
-    //width and height of the texture image being loaded
-    unsigned int textureWidth = 0;
-    unsigned int textureHeight = 0;
-
-    //load the image using lodePNG and output to image vector
-     unsigned int imageSuccess = imageLoader.loadImage(image, textureWidth, textureHeight, fileName);
-
-    //bind texture before filling with image data
-    glActiveTexture(GL_TEXTURE0 + texID); //define unit zero, is also default unit
-    glBindTexture(GL_TEXTURE_2D, texID);
-
-    //create the actual image, fill with data from read file
-    glTexImage2D(
-
-        GL_TEXTURE_2D, //define as 2D texture type
-        0, //at mipmap leveel 0 - highest resolution image
-        GL_RGBA, //the internal formatting
-        textureWidth, //image width
-        textureHeight, //image height
-        0, //border - this HAS to be 0
-        GL_RGBA, //format - from image provided
-        GL_UNSIGNED_BYTE, //data type = RGBA, RGBA, et cet in scanline format - 8 bits per channel
-        &image[0] //pixel array data
-    );
-
-    //create mipmap levels
-    //the order of the below function doesn't matter - 
-    //we can generate mipmaps whenever as long as its before we use them and send to GPU!
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    //do trilinear filtering with mipmaps
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_MIN_FILTER,
-        //interpolates between two mipmap levels to avoid jittering
-        GL_LINEAR_MIPMAP_LINEAR
-    );
-
-    //allows for magnification - when we get very close to texture,
-    //individual texels can be larger than a single pixel!
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_MAG_FILTER,
-        GL_LINEAR
-    );
-
-    //then we need to tell what to do when texture coord is outside 0-1
-
-    //use repeated wrapping in t (vertical) direction
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_WRAP_S,
-        GL_REPEAT
-    );
-
-    //use clamped wrapping in s (horizontal) direction
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_WRAP_T,
-        GL_REPEAT
-    );
-
-    //setting the uniform sampler variable
-    GLint sampler = glGetUniformLocation(programInfo.programID, uniformName);
-    glUseProgram(programInfo.programID);
-    glUniform1i(sampler, texID); //set to match the texture unit from glActiveTexture
-
-}
-
-//generates textures for given object
-void GenerateTextures(cy::TriMesh &mesh, bool spec) {
-
-    //load imageData with the pixel image data we get from the file
-    int matNum = mesh.NM();
-    std::cout << "Number of materials: " << matNum << std::endl;
-
-    cy::TriMesh::Str diffuseTextureData;
-    cy::TriMesh::Str specTextureData;
-
-    for (int i = 0; i < matNum; i++) {
-        const cy::TriMesh::Mtl& mat = mesh.M(0);
-        diffuseTextureData = mat.map_Kd;
-        if(spec){
-            specTextureData = mat.map_Ks;
-        }
-    }
-
-    const std::string diffuseFileName(diffuseTextureData.data);
-    std::cout << "DIFFUSE FILE NAME: " << diffuseFileName << std::endl;
-    //test with PNG to see if this works!
-    //BindTexturesMTL(teapotInfo, diffuseFileName, teapotInfo.texIDDiffuse, "diffuseTex");
-    
-
-    if (spec) {
-        const std::string specFileName(specTextureData.data);
-        std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
-        //do the same thing now for the specular texture
-      //  BindTexturesMTL(teapotInfo, specFileName, teapotInfo.texIDSpec, "specTex");
-    }
-
-}
+/*
 
 //environment cube mapping
 void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
@@ -622,6 +516,8 @@ void BindCubeMapTextures(GLuint &texID, std::vector<std::string> faceNames){
         GL_LINEAR
     );
 }
+
+*/
 
 //creates buffers screen space plane with normalized device coordinates
 void CreateScreenPlaneBuffers(GLuint& vbo) {

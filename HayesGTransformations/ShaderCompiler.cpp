@@ -1,6 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "ShaderCompiler.h"
 
+
+ImageLoader imageLoader;
 //compile shaders and store in provided program ID
 void ShaderCompiler::CompileShaders(const char* vertName, const std::string& fragName, GLuint& vaoID, GLuint& programID) {
     //manually compile vertex shader
@@ -188,10 +190,10 @@ cy::TriMesh ShaderCompiler::LoadObjectFile(const char* fileName) {
     //check if mesh was opened correctly
     bool couldOpenPot = mesh.LoadFromFileObj(fileName);
     if (couldOpenPot) {
-        std::cout << "opened teapot!" << std::endl;
+        std::cout << "loaded mesh from obj file!" << std::endl;
     }
     else {
-        std::cout << "Could not open the teapot!" << std::endl;
+        std::cout << "Could not load mesh from obj file!" << std::endl;
     }
 
     return mesh;
@@ -317,4 +319,116 @@ void ShaderCompiler::CreateKernel() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+}
+
+//creates and binds a texture, given a specified filename and uniform variable
+//currenlty used for both diffuse and specularity
+void ShaderCompiler::BindTexturesMTL(ProgramInfo& programInfo, const std::string& fileName, GLuint& texID, const GLchar* uniformName) {
+
+    //create the texture variable
+    glGenTextures(1, &texID);
+    //this will hold the image raw data
+    std::vector<unsigned char> image;
+
+    //width and height of the texture image being loaded
+    unsigned int textureWidth = 0;
+    unsigned int textureHeight = 0;
+
+    //load the image using lodePNG and output to image vector
+    unsigned int imageSuccess = imageLoader.loadImage(image, textureWidth, textureHeight, fileName);
+
+    //bind texture before filling with image data
+    glActiveTexture(GL_TEXTURE0 + texID); //define unit zero, is also default unit
+    glBindTexture(GL_TEXTURE_2D, texID);
+
+    //create the actual image, fill with data from read file
+    glTexImage2D(
+
+        GL_TEXTURE_2D, //define as 2D texture type
+        0, //at mipmap leveel 0 - highest resolution image
+        GL_RGBA, //the internal formatting
+        textureWidth, //image width
+        textureHeight, //image height
+        0, //border - this HAS to be 0
+        GL_RGBA, //format - from image provided
+        GL_UNSIGNED_BYTE, //data type = RGBA, RGBA, et cet in scanline format - 8 bits per channel
+        &image[0] //pixel array data
+    );
+
+    //create mipmap levels
+    //the order of the below function doesn't matter - 
+    //we can generate mipmaps whenever as long as its before we use them and send to GPU!
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    //do trilinear filtering with mipmaps
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MIN_FILTER,
+        //interpolates between two mipmap levels to avoid jittering
+        GL_LINEAR_MIPMAP_LINEAR
+    );
+
+    //allows for magnification - when we get very close to texture,
+    //individual texels can be larger than a single pixel!
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MAG_FILTER,
+        GL_LINEAR
+    );
+
+    //then we need to tell what to do when texture coord is outside 0-1
+
+    //use repeated wrapping in t (vertical) direction
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_WRAP_S,
+        GL_REPEAT
+    );
+
+    //use clamped wrapping in s (horizontal) direction
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_WRAP_T,
+        GL_REPEAT
+    );
+
+    //setting the uniform sampler variable
+    GLint sampler = glGetUniformLocation(programInfo.programID, uniformName);
+    glUseProgram(programInfo.programID);
+    glUniform1i(sampler, texID); //set to match the texture unit from glActiveTexture
+    std::cout << "Successfully bound texture for: " << fileName << std::endl;
+    programInfo.object->hasTextures = true;
+}
+
+//generates textures for given object
+void ShaderCompiler::GenerateTextures(ProgramInfo& programInfo, cy::TriMesh& mesh, bool spec) {
+
+    //load imageData with the pixel image data we get from the file
+    int matNum = mesh.NM();
+    std::cout << "Number of materials: " << matNum << std::endl;
+
+    cy::TriMesh::Str diffuseTextureData;
+    cy::TriMesh::Str specTextureData;
+
+    for (int i = 0; i < matNum; i++) {
+        const cy::TriMesh::Mtl& mat = mesh.M(0);
+        diffuseTextureData = mat.map_Kd;
+        if (spec) {
+            specTextureData = mat.map_Ks;
+        }
+    }
+
+    const std::string diffuseFileName(diffuseTextureData.data);
+    std::cout << "DIFFUSE FILE NAME: " << diffuseFileName << std::endl;
+    //test with PNG to see if this works!
+    BindTexturesMTL(programInfo, diffuseFileName, programInfo.texIDDiffuse, "diffuseTex");
+
+
+    if (spec) {
+        const std::string specFileName(specTextureData.data);
+        std::cout << "SPEC FILE NAME: " << specFileName << std::endl;
+        //do the same thing now for the specular texture
+        BindTexturesMTL(programInfo, specFileName, programInfo.texIDSpec, "specTex");
+    }
+
 }

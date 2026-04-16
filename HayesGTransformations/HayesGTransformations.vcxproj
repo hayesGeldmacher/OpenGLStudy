@@ -131,6 +131,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DrawObjects.cpp" />
     <ClCompile Include="GBuffer.cpp" />
+    <ClCompile Include="ImageLoader.cpp" />
     <ClCompile Include="LightInfo.cpp" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="main.cpp" />

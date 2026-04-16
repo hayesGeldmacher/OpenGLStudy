@@ -18,6 +18,7 @@
 //custom includes
 #include "ProgramInfo.h"
 #include "cyTriMesh.h"
+#include "ImageLoader.h"
 #include "ShaderCompiler.h"
 
 
@@ -35,7 +36,11 @@ public:
 
 	void InitializeObject(cy::TriMesh& mesh, Object& object);
 
+	void BindTexturesMTL(ProgramInfo&, const std::string&, GLuint&, const GLchar*);
+
 	cy::TriMesh LoadObjectFile(const char*);
+
+	void GenerateTextures(ProgramInfo&, cy::TriMesh&, bool);
 
 	float Lerp(float, float, float);
 

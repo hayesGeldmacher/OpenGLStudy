@@ -78,6 +78,7 @@ void DrawObjectsContainer::InitializeObjects() {
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", ceilingInfo.vao, ceilingInfo.programID);
     compiler.CreateBuffers(ceilingInfo, ceilingMesh);
     drawObjects.push_back(&ceilingInfo);
+    compiler.BindTexturesMTL(ceilingInfo, "brickWall.png", ceilingInfo.texIDDiffuse, "albedoTexture");
     ceilingObject.SetScale(5.0f);
     ceilingObject.SetPosition(0, -15, 0);
 
