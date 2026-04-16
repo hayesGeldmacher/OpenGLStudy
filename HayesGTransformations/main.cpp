@@ -380,7 +380,6 @@ void OnDisplay() {
     //draw all objects to the screen
     for (ProgramInfo* program : container.drawObjects) {
         bool renderTextures = program->object->hasTextures;
-        if (renderTextures) { std::cout << "Rendered texture for object!" << std::endl; }
         RenderMeshObject(*program, camera, renderTextures, false);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

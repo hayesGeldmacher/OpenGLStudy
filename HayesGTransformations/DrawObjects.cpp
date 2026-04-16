@@ -102,8 +102,9 @@ void DrawObjectsContainer::InitializeObjects() {
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", rockInfo.vao, rockInfo.programID);
     compiler.CreateBuffers(rockInfo, rockMesh);
     drawObjects.push_back(&rockInfo);
-    rockObject.SetScale(7.0f);
-    rockObject.SetPosition(-4.0f, -20.0f, -65.0f);
+    compiler.BindTexturesMTL(rockInfo, "plate.png", rockInfo.texIDDiffuse, "albedoTexture");
+    rockObject.SetScale(6.5f);
+    rockObject.SetPosition(0, -25.0f, -80.0f);
 
     //compile vases
     compiler.CompileShaders("ambientObject.vert", "AOBuffer.frag", vaseInfo.vao, vaseInfo.programID);
