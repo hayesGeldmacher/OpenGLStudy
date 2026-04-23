@@ -45,15 +45,18 @@ float ComputeKernelSSAO(){
 	vec3 bitTangent = cross(normal, tangent);
 	mat3 TBN = mat3(tangent, bitTangent, normal);
 
+	int startSample = 0;
+	int endSample = 22; 
+
 	//for loop, go through each nested hemisphere
 	for(int i = 0; i < 3; ++i){
 	
 		float scaleOcclusion = 0.0;
 		float currentRadius = nestedRadius[i]; //get the desired radius
 	    float currentLod = textureLevels[i]; //get the desired lod
-
+		
 		//inner for loop, get random samples
-		for(int j = 0; j < 64; ++j){
+		for(int j = startSample; j < endSample; ++j){
 			
 			vec3 samplePos = TBN * samples[j]; 
 			samplePos = fragPos + samplePos * currentRadius;
@@ -73,6 +76,9 @@ float ComputeKernelSSAO(){
 		    //if the sampled depth is greater than the sample position depth, add to occlusion factor
 		     scaleOcclusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
 		}
+			
+		startSample += 20;
+		endSample += 20;
 
 		//add to total occlusion factor
 		totalOcclusion += ( scaleOcclusion / float(64));
